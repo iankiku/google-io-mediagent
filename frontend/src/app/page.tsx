@@ -84,26 +84,9 @@ const DEMO_RECORDS: MedicalRecord[] = [
       ]
     })
   },
-  {
-    record_id: "rec-002",
-    user_id: "demo-patient-uuid-001",
-    file_name: "Lab_Report_Feb_2026.pdf",
-    file_type: "application/pdf",
-    status: "completed",
-    created_at: "2026-02-20T14:30:00Z",
-    extracted_summary: JSON.stringify({
-      summary: "Intermediate metabolic check. Glycemic profile is improving under Metformin therapy. Blood pressure shows minor borderline spikes but is generally stable.",
-      key_findings: ["HbA1c level is 5.8% (Borderline/Prediabetes)", "Fasting glucose is 102 mg/dL", "BP is 124/80 mmHg"],
-      medications: ["Metformin 500mg - 1x daily", "Lisinopril 10mg - 1x daily"],
-      diagnoses: ["Type 2 Diabetes (Improving)", "Hypertension (Stable)"],
-      allergies: ["Penicillin (Mild rash)"],
-      lab_metrics: [
-        { metric: "HbA1c Level", value: "5.8%", status: "Normal" },
-        { metric: "Fasting Glucose", value: "102 mg/dL", status: "Normal" },
-        { metric: "Systolic Blood Pressure", value: "124 mmHg", status: "Normal" },
-        { metric: "Diastolic Blood Pressure", value: "80 mmHg", status: "Normal" }
-      ]
-    })
+  connections: {
+    appleHealth: true,
+    myChartConnected: false,
   },
   {
     record_id: "rec-003",
@@ -195,28 +178,24 @@ export default function Home() {
     }
   };
 
-  const fetchBotStatus = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/telegram/status`);
-      if (response.ok) {
-        const data = await response.json();
-        setBotStatus({
-          configured: data.bot_configured,
-          running: data.bot_running
-        });
-      }
-    } catch (err) {
-      console.error("Failed to fetch Telegram bot status", err);
-    }
-  };
+const INITIAL_VITALS: VitalsState = {
+  irregularRhythm: false,
+};
 
-  const fetchUserRecords = async (userId: string) => {
-    setIsRecordsLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/ingest/records/${userId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setRecords(data);
+export default function Page() {
+  const [view, setView] = useState<ZoieView>("talk");
+  const [settings, setSettings] = useState<SettingsState>(INITIAL_SETTINGS);
+  const [vitals, setVitals] = useState<VitalsState>(INITIAL_VITALS);
+
+  const handleImportData = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,.png,.jpg,.jpeg,.txt,.csv";
+    input.multiple = true;
+    input.onchange = () => {
+      const count = input.files?.length ?? 0;
+      if (count > 0) {
+        alert(`Imported ${count} file${count === 1 ? "" : "s"}. Zoie will process them shortly.`);
       }
     } catch (err) {
       console.error("Failed to fetch records", err);
@@ -269,6 +248,8 @@ export default function Home() {
       content: input,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
+    input.click();
+  }, []);
 
     setMessages(prev => [...prev, userMsg]);
     setInput("");
@@ -343,9 +324,7 @@ export default function Home() {
     if (selectedUserId !== "demo-patient-uuid-001") {
       fetchUserRecords(selectedUserId);
     }
-    fetchUsers();
-    fetchBotStatus();
-  };
+  }, [view, vitals, handleImportData, settings]);
 
   return (
     <div className="flex h-screen w-screen bg-[#08090d] text-[#e2e8f0] font-sans overflow-hidden">
