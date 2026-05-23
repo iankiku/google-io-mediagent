@@ -229,9 +229,7 @@ function TalkHero({
     : "Tap the orb to speak with me";
 
   const subtitle =
-    mode === "visit"
-      ? "Live interpreter — alternating patient and doctor"
-      : "Daily check-in with Zoe";
+    mode === "visit" ? "Live interpreter" : "Daily check-in with Zoe";
 
   return (
     <div className="shrink-0 flex flex-col items-center pt-8 pb-6 px-6">
@@ -281,7 +279,7 @@ function TalkHero({
 function TranscriptScroll() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto zoe-scroll">
-      <div className="mx-auto max-w-2xl px-6 pb-6">
+      <div className="mx-auto max-w-2xl px-6 pb-6 flex min-h-full flex-col">
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <EmptyTranscript />
         </AuiIf>
@@ -309,16 +307,16 @@ function TranscriptScroll() {
 
 function EmptyTranscript() {
   return (
-    <div className="mt-8 flex flex-col items-center gap-4">
-      <p className="text-center text-sm text-muted-foreground max-w-md">
-        Anything Zoe says will appear here. Tap the orb to start a voice
-        conversation, or open the chat panel to type.
-      </p>
+    <div className="mt-auto flex flex-col items-center gap-3 pb-2">
       <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-2">
         <ThreadPrimitive.Suggestions>
           {() => <SuggestionPill />}
         </ThreadPrimitive.Suggestions>
       </div>
+      <p className="text-center text-xs text-muted-foreground/80 max-w-md">
+        Anything Zoe says will appear here. Tap the orb to start a voice
+        conversation, or open the chat panel to type.
+      </p>
     </div>
   );
 }

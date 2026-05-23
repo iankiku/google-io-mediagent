@@ -264,52 +264,17 @@
   }
 }
 
-/* ---------- Zoe Otter Orb — pixel-art mascot on a soft cushion ---------- */
+/* ---------- Zoe Otter Orb — pixel-art mascot on a clean white disc ---------- */
 .zoe-otter-orb {
   position: relative;
   border-radius: 9999px;
-  isolation: isolate;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    /* top-left bright sun highlight */
-    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 30%),
-    /* upper-right lilac wash */
-    radial-gradient(ellipse 60% 45% at 75% 30%, color-mix(in oklab, var(--zoe-lilac-soft) 80%, white) 0%, color-mix(in oklab, var(--zoe-lilac-soft) 0%, white) 60%),
-    /* bottom warm sand for groundedness */
-    radial-gradient(ellipse 70% 55% at 50% 85%, color-mix(in oklab, var(--zoe-amber-soft) 90%, white) 0%, color-mix(in oklab, var(--zoe-sand) 60%, white) 50%, var(--zoe-sand) 100%),
-    /* base cushion color */
-    radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--zoe-sand) 80%, white) 0%, var(--zoe-sand) 70%);
+  background: white;
   box-shadow:
-    inset -10px -14px 28px color-mix(in oklab, var(--zoe-lilac) 18%, transparent),
-    inset 12px 14px 26px rgba(255, 255, 255, 0.55),
-    0 18px 36px -12px rgba(80, 60, 140, 0.30),
-    0 0 0 1px rgba(255, 255, 255, 0.55);
+    inset 0 -8px 18px rgba(80, 60, 140, 0.08),
+    inset 0 6px 14px rgba(255, 255, 255, 0.9),
+    0 18px 36px -12px rgba(80, 60, 140, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.7);
   animation: zoe-orb-breathe 9s ease-in-out infinite;
-  overflow: hidden;
-}
-
-.zoe-otter-orb::before {
-  /* subtle swirl wash for life */
-  content: "";
-  position: absolute;
-  inset: 6%;
-  border-radius: 9999px;
-  background:
-    radial-gradient(ellipse 40% 30% at 70% 35%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 65%),
-    radial-gradient(ellipse 35% 25% at 25% 75%, color-mix(in oklab, var(--zoe-lilac-soft) 60%, transparent) 0%, transparent 65%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-  animation: zoe-orb-swirl 22s linear infinite;
-}
-
-.zoe-otter-orb__art {
-  /* lift the otter slightly off the cushion center for an "active" pose */
-  transform: translateY(-2%);
-  filter: drop-shadow(0 4px 6px rgba(80, 50, 30, 0.18));
-  pointer-events: none;
-  user-select: none;
 }
 
 .zoe-otter-orb--listening {
@@ -320,18 +285,18 @@
 @keyframes zoe-otter-orb-pulse {
   0%, 100% {
     box-shadow:
-      inset -10px -14px 28px color-mix(in oklab, var(--zoe-lilac) 18%, transparent),
-      inset 12px 14px 26px rgba(255, 255, 255, 0.55),
-      0 18px 36px -12px rgba(80, 60, 140, 0.30),
-      0 0 0 1px rgba(255, 255, 255, 0.55),
+      inset 0 -8px 18px rgba(80, 60, 140, 0.08),
+      inset 0 6px 14px rgba(255, 255, 255, 0.9),
+      0 18px 36px -12px rgba(80, 60, 140, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.7),
       0 0 0 0 color-mix(in oklab, var(--zoe-lilac) 50%, transparent);
   }
   50% {
     box-shadow:
-      inset -10px -14px 28px color-mix(in oklab, var(--zoe-lilac) 18%, transparent),
-      inset 12px 14px 26px rgba(255, 255, 255, 0.55),
-      0 18px 36px -12px rgba(80, 60, 140, 0.30),
-      0 0 0 1px rgba(255, 255, 255, 0.55),
+      inset 0 -8px 18px rgba(80, 60, 140, 0.08),
+      inset 0 6px 14px rgba(255, 255, 255, 0.9),
+      0 18px 36px -12px rgba(80, 60, 140, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.7),
       0 0 0 22px color-mix(in oklab, var(--zoe-lilac) 0%, transparent);
   }
 }

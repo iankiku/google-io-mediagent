@@ -9,23 +9,18 @@ interface ZoeLogoProps {
   rounded?: "full" | "lg" | "md" | "none";
   ring?: boolean;
   priority?: boolean;
-  /**
-   * Whether to wrap the otter in a soft pad/disc. Off by default — the source
-   * art is transparent and reads best on whatever surface sits behind it.
-   */
-  padded?: boolean;
 }
 
 /**
- * Otter mascot lockup. Pixel-art source → render with `image-rendering: pixelated`
- * for crisp edges at any size.
+ * Otter mascot. Source PNG has a white background, so circular slots crop it
+ * cleanly with `rounded-full` + `overflow-hidden`. Pixel art stays crisp via
+ * `image-rendering: pixelated`.
  */
 export function ZoeLogo({
   size = 40,
   className,
-  rounded = "none",
-  ring = false,
-  padded = false,
+  rounded = "full",
+  ring = true,
   priority = false,
 }: ZoeLogoProps) {
   const roundedCls =
@@ -42,8 +37,7 @@ export function ZoeLogo({
       role="img"
       aria-label="Zoe"
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden",
-        padded && "bg-[color:var(--zoe-sand)]",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden bg-white",
         ring && "ring-1 ring-foreground/10",
         roundedCls,
         className
@@ -53,11 +47,11 @@ export function ZoeLogo({
       <Image
         src="/zoe-logo.png"
         alt=""
-        width={size}
-        height={size}
+        width={size * 2}
+        height={size * 2}
         sizes={`${size}px`}
-        className="h-full w-full object-contain"
-        style={{ imageRendering: "pixelated" }}
+        className="absolute inset-0 m-auto h-full w-full object-cover"
+        style={{ imageRendering: "pixelated", objectPosition: "center" }}
         unoptimized
         priority={priority}
       />
