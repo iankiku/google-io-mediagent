@@ -1,11 +1,14 @@
 # Team Nebula AI Workspace Makefile
 
-.PHONY: dev install setup-backend setup-frontend help
+.PHONY: dev install setup-backend setup-frontend help docker-up docker-down deploy
 
 help:
 	@echo "Available commands:"
-	@echo "  make dev      - Start the FastAPI backend and Next.js frontend concurrently"
-	@echo "  make install  - Install all backend (python) and frontend (node) dependencies"
+	@echo "  make dev           - Start backend + frontend locally (no Docker)"
+	@echo "  make install       - Install all backend + frontend dependencies"
+	@echo "  make docker-up     - Start full stack via Docker Compose (includes pgvector DB)"
+	@echo "  make docker-down   - Stop Docker Compose stack"
+	@echo "  make deploy        - Deploy to GCP via Pulumi"
 
 dev:
 	@echo "Starting backend (FastAPI) and frontend (Next.js) concurrently..."
@@ -28,3 +31,12 @@ setup-frontend:
 	@echo "Installing npm dependencies for frontend..."
 	cd frontend && \
 		npm install
+
+docker-up:
+	docker compose up --build -d
+
+docker-down:
+	docker compose down
+
+deploy:
+	cd infra && pulumi up --yes

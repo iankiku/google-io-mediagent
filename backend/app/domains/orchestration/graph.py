@@ -1,8 +1,9 @@
 import json
-from typing import TypedDict, List
+from typing import TypedDict, List, Optional
 from langgraph.graph import StateGraph, END
 from google.genai import types
 from app.core.config import client, DEFAULT_BASE_AGENT
+from app.domains.ingestion.services import query_user_vector_records, query_general_medical_knowledge
 
 # Define the state representation
 class AgentState(TypedDict):
@@ -18,6 +19,7 @@ class AgentState(TypedDict):
     logs: List[str]                # Execution steps and routing logs
     custom_agents_md: str          # Custom AGENTS.md content to overlay
     custom_skills: List[dict]      # Custom skills list to mount
+    user_id: Optional[str]         # Optional user UUID for private medical data lookups
 
 # Node 1: Router
 # Uses Gemini to analyze user query and configure the correct agent, instructions, and tools.
@@ -81,7 +83,36 @@ def execution_node(state: AgentState) -> dict:
     tools = state.get("tools", [])
     logs = state.get("logs", [])
     iteration = state.get("iteration", 0) + 1
+    user_id = state.get("user_id")
+
+    logs.append(f"[Executor] Checking pgvector for query: '{latest_input}'")
     
+    # RAG: Retrieve context from pgvector
+    context_parts = []
+    
+    # 1. Private User Records (if user_id is provided)
+    if user_id:
+        logs.append(f"[Executor] Querying private health records for user {user_id}")
+        user_records = query_user_vector_records(user_id, latest_input, limit=4)
+        if user_records:
+            context_parts.append("### User's Private Medical Records & Diagnostics (Grounded Source of Truth):\n" + 
+                                 "\n".join([f"- {r['chunk_content']}" for r in user_records]))
+            logs.append(f"[Executor] Found {len(user_records)} relevant private record chunks.")
+        else:
+            logs.append("[Executor] No relevant private records found.")
+            
+    # 2. General Medical Knowledge Base (Chronic Disease guidelines)
+    logs.append("[Executor] Querying general medical knowledge base...")
+    gen_kb = query_general_medical_knowledge(latest_input, limit=3)
+    if gen_kb:
+        context_parts.append("### General Chronic Disease Reference & Guidelines:\n" + 
+                             "\n".join([f"- [{k['source_title']} - {k['disease_category']}]: {k['chunk_content']}" for k in gen_kb]))
+        logs.append(f"[Executor] Found {len(gen_kb)} relevant general medical knowledge chunks.")
+        
+    if context_parts:
+        context_str = "\n\n".join(context_parts)
+        system_instruction += f"\n\n[Grounded Medical Context]\n{context_str}\n\nStrict ground rules: Base your answers primarily on the user's private medical records when available. Be helpful, clear, and translate complex terms into plain language. If the user asks general chronic disease questions, refer to the reference guidelines."
+        
     logs.append(f"[Executor] Invoking Managed Agent '{target_agent_id}' (Iteration {iteration})...")
     
     # Map tool string to types.Tool

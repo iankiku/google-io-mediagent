@@ -1,0 +1,22 @@
+# Pulumi ESC Environment Definition
+# Create this environment in Pulumi Cloud:
+#   pulumi env init <org>/mediagent-dev
+#   pulumi env edit <org>/mediagent-dev
+# Then paste this content, replacing placeholder values.
+
+values:
+  geminiApiKey:
+    fn::secret: "REPLACE_WITH_KEY"
+  postgresPassword:
+    fn::secret: "REPLACE_WITH_PASSWORD"
+  telegramBotToken:
+    fn::secret: "REPLACE_WITH_TOKEN"
+  gcpProject: "REPLACE_WITH_PROJECT_ID"
+  gcpRegion: "us-central1"
+
+  pulumiConfig:
+    gcp:project: ${gcpProject}
+    gcp:region: ${gcpRegion}
+    mediagent:geminiApiKey: ${geminiApiKey}
+    mediagent:postgresPassword: ${postgresPassword}
+    mediagent:telegramBotToken: ${telegramBotToken}

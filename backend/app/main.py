@@ -2,10 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.domains.agent_registry.router import router as agent_registry_router
 from app.domains.orchestration.router import router as orchestration_router
+from app.domains.ingestion.router import router as ingestion_router
+from app.domains.telegram.router import router as telegram_router, start_bot_polling
+from app.core.db import initialize_database
 
 app = FastAPI(
-    title="Gemini Managed Agents Orchestrator",
-    description="FastAPI + LangGraph backend for managing and executing Gemini Custom Agents (Domain Driven Design)",
+    title="Health Assistant Orchestrator",
+    description="FastAPI + LangGraph backend for Health Assistant (pgvector + MedGemma + Telegram Bot)",
     version="1.0.0"
 )
 
@@ -21,7 +24,16 @@ app.add_middleware(
 # Register domain routers
 app.include_router(agent_registry_router)
 app.include_router(orchestration_router)
+app.include_router(ingestion_router)
+app.include_router(telegram_router)
+
+@app.on_event("startup")
+def on_startup():
+    # 1. Initialize Postgres Database schemas and pgvector indexes
+    initialize_database()
+    # 2. Run Telegram bot listener in a background daemon thread
+    start_bot_polling()
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "service": "Gemini Managed Agents API (DDD Structure)"}
+    return {"status": "ok", "service": "Health Assistant Orchestrator API (pgvector + DDD)"}

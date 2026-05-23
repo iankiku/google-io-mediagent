@@ -11,6 +11,7 @@ While you can pass configuration inline, the platform allows you to organize you
 ```
 my-agent/
 ├── AGENTS.md        # Persona definition & long-form system instructions
+├── project-docs/    # Project PRDs and technical architecture documents
 ├── skills/          # Custom skills (subfolders containing SKILL.md files)
 │   └── slide-maker/
 │       └── SKILL.md
@@ -42,7 +43,10 @@ interaction = client.interactions.create(
 )
 ```
 
-### 2. Custom Skills (SKILL.md)
+### 2. Project Documentation (project-docs/)
+All project Product Requirement Documents (PRDs) and technical architecture pipeline designs must be saved inside the `project-docs/` folder for persistent storage and cross-agent context sharing.
+
+### 3. Custom Skills (SKILL.md)
 Skills are files that extend the agent's capabilities. Place them under `.agents/skills/<skill-name>/SKILL.md` for auto-discovery and registration:
 
 ```
@@ -71,7 +75,7 @@ interaction = client.interactions.create(
 )
 ```
 
-### 3. Persistent Managed Agents (agents.create)
+### 4. Persistent Managed Agents (agents.create)
 To avoid passing configurations inline, persist them using `agents.create`:
 
 ```python
