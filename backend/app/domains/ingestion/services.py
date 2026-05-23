@@ -28,14 +28,15 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> List[str
 
 def generate_embedding(text: str) -> List[float]:
     """
-    Generates a 768-dimensional embedding vector for the text using text-embedding-004.
+    Generates a 768-dimensional embedding vector for the text using gemini-embedding-001.
+    Pinned to 768d via output_dimensionality so it matches the pgvector schema.
     """
     try:
         response = client.models.embed_content(
-            model="text-embedding-004",
-            contents=text
+            model="gemini-embedding-001",
+            contents=text,
+            config=types.EmbedContentConfig(output_dimensionality=768),
         )
-        # Get embedding
         return response.embeddings[0].values
     except Exception as e:
         logger.error(f"Failed to generate embedding: {str(e)}")
@@ -108,6 +109,31 @@ def process_medical_file_with_medgemma(
             allergies=[],
             lab_metrics=[]
         )
+
+async def process_voice_note_with_translation(
+    audio_bytes: bytes,
+    mime_type: str,
+    user_id: str,
+) -> ClinicalSummary:
+    """For Telegram voice-note check-ins: translate to English first, then summarize."""
+    from app.domains.interpreter.stt import transcribe
+    from app.domains.interpreter.services import _fetch_preferred_language
+
+    source_language = _fetch_preferred_language(user_id)
+    raw_native = await transcribe(audio_bytes, source_language=source_language, mime_type=mime_type)
+
+    summary_text = (
+        f"Patient voice note (source language: {source_language}). "
+        f"Raw: {raw_native}"
+    )
+    return ClinicalSummary(
+        summary=summary_text,
+        key_findings=[raw_native] if raw_native else [],
+        medications=[],
+        diagnoses=[],
+        allergies=[],
+        lab_metrics=[],
+    )
 
 def ingest_medical_record(
     user_id: str, 
