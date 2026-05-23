@@ -1,0 +1,9 @@
+# Install from repo backend for full stack (FastAPI app + DB drivers):
+#   cd backend && pip install -r requirements.txt
+#
+# Minimal deps if running only this agent folder in isolation:
+google-genai>=1.20.0
+python-dotenv>=1.0.1
+psycopg2-binary>=2.9.0
+pgvector>=0.2.0
+pydantic>=2.0.0

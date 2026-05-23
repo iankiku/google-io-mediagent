@@ -4,22 +4,12 @@ from typing import TypedDict, List, Optional
 from langgraph.graph import StateGraph, END
 from google.genai import types
 from app.core.config import client, DEFAULT_BASE_AGENT
-from app.domains.retrieval.services import retrieve
-
-INVARIANT_SYSTEM_INSTRUCTION = """
-CRITICAL RULE — Citation Invariant:
-Every medical statement you produce must be either:
-(i) a value from the patient's records, cited as [doc:<record_id>] or with the source document name
-(ii) a definition from a citable reference, cited as LOINC:<code>, RxNorm:<rxcui>, or MedlinePlus:<url>
-(iii) explicitly framed as a question to bring to the doctor, not a claim
-
-No free-form medical synthesis without a citation. Ever.
-
-When your response approaches advice territory, include this line:
-"I'm not a doctor — I can help you understand and remember. Let's bring this to Dr. Patel on Thursday."
-
-When speaking to the patient, use Indian English register where natural — familiar idioms, not dumbed-down language.
-"""
+from app.domains.agents.deep_insights_agent.deep_insights_pipeline import (
+    DEFAULT_BASE_ROLE,
+    build_grounded_system_instruction,
+    run_retrieval,
+    synthesize_grounded_answer,
+)
 
 class AgentState(TypedDict):
     messages: List[dict]           # Chat history
@@ -96,84 +86,38 @@ def execution_node(state: AgentState) -> dict:
     iteration = state.get("iteration", 0) + 1
     user_id = state.get("user_id")
 
-    logs.append(f"[Executor] Running HyDE retrieval pipeline for query: '{latest_input}'")
+    logs.append(f"[Executor] Running deep insights pipeline for query: '{latest_input}'")
 
-    context_parts = []
-
-    # HyDE retrieval (replaces direct pgvector calls)
-    retrieval_user_id = user_id or ""
-    retrieval_result = retrieve(retrieval_user_id, latest_input)
+    retrieval_result = run_retrieval(latest_input, user_id)
 
     if retrieval_result.contexts:
-        context_parts.append(
-            "### Retrieved Medical Context (Grounded Source of Truth):\n" +
-            "\n".join([
-                f"- [doc:{c.record_id}] (relevance: {c.score}/10): {c.chunk_content}"
-                for c in retrieval_result.contexts
-            ])
-        )
         logs.append(f"[Executor] HyDE retrieved {len(retrieval_result.contexts)} reranked contexts.")
-        logs.append(f"[Executor] HyDE iterations produced {len(retrieval_result.hypothetical_answers)} hypothetical answers.")
+        logs.append(
+            f"[Executor] HyDE iterations produced {len(retrieval_result.hypothetical_answers)} hypothetical answers."
+        )
     else:
         logs.append("[Executor] HyDE retrieval returned no relevant contexts.")
 
-    # Prepend citation invariant to system instruction
-    system_instruction = INVARIANT_SYSTEM_INSTRUCTION + "\n" + system_instruction
+    system_instruction = build_grounded_system_instruction(
+        retrieval_result,
+        base_system_instruction=system_instruction or DEFAULT_BASE_ROLE,
+    )
 
-    if context_parts:
-        context_str = "\n\n".join(context_parts)
-        system_instruction += f"\n\n[Grounded Medical Context]\n{context_str}\n\nStrict ground rules: Base your answers primarily on the patient's retrieved records when available. Cite every medical claim with [doc:<record_id>], LOINC:<code>, or RxNorm:<rxcui>. Be helpful, clear, and translate complex terms into plain language. If the user asks general chronic disease questions, refer to the reference guidelines."
-        
     logs.append(f"[Executor] Invoking Managed Agent '{target_agent_id}' (Iteration {iteration})...")
-    
-    api_tools = []
-    for t in tools:
-        api_tools.append({"type": t})
 
     custom_agents_md = state.get("custom_agents_md")
     custom_skills = state.get("custom_skills") or []
-    
-    environment_config = "remote"
-    
-    if custom_agents_md or custom_skills:
-        sources = []
-        if custom_agents_md:
-            sources.append({
-                "type": "inline",
-                "target": ".agents/AGENTS.md",
-                "content": custom_agents_md
-            })
-            logs.append(f"[Executor] Overlaying custom inline AGENTS.md (length: {len(custom_agents_md)} chars)")
-            
-        for skill in custom_skills:
-            skill_name = skill.get("name")
-            skill_content = skill.get("content")
-            if skill_name and skill_content:
-                sources.append({
-                    "type": "inline",
-                    "target": f".agents/skills/{skill_name}/SKILL.md",
-                    "content": skill_content
-                })
-                logs.append(f"[Executor] Overlaying custom inline skill '{skill_name}' (length: {len(skill_content)} chars)")
-                
-        environment_config = {
-            "type": "remote",
-            "sources": sources
-        }
 
-    try:
-        interaction = client.interactions.create(
-            agent=target_agent_id,
-            input=latest_input,
-            system_instruction=system_instruction,
-            tools=api_tools,
-            environment=environment_config
-        )
-        agent_response = interaction.output_text
-        logs.append("[Executor] Interaction succeeded.")
-    except Exception as e:
-        agent_response = f"Error executing managed agent interaction: {str(e)}"
-        logs.append(f"[Executor] Interaction failed with error: {str(e)}")
+    agent_response, synthesis_logs = synthesize_grounded_answer(
+        latest_input,
+        system_instruction,
+        managed_agent_id=target_agent_id,
+        tools=tools,
+        custom_agents_md=custom_agents_md,
+        custom_skills=custom_skills,
+    )
+    for log_line in synthesis_logs:
+        logs.append(log_line.replace("[DeepInsights]", "[Executor]"))
 
     return {
         "agent_response": agent_response,
