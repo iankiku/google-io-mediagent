@@ -6,9 +6,21 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phone_number VARCHAR(20) UNIQUE NOT NULL,
     telegram_id VARCHAR(50) UNIQUE NULL,
+    preferred_language VARCHAR(16) NOT NULL DEFAULT 'en-US',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Idempotent column add for existing deployments
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(16) NOT NULL DEFAULT 'en-US';
+
+-- Scheduler state: when did we last send a proactive ping, and how often should we?
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS last_checkin_at TIMESTAMP WITH TIME ZONE NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS checkin_cadence_hours INT NOT NULL DEFAULT 24;
 
 -- 2. User Medical Records Metadata
 CREATE TABLE IF NOT EXISTS user_medical_records (
@@ -54,6 +66,50 @@ CREATE TABLE IF NOT EXISTS general_medical_knowledge (
 );
 
 -- HNSW Vector Similarity Index for General Medical Knowledge
-CREATE INDEX IF NOT EXISTS idx_general_kb_vector 
-ON general_medical_knowledge 
+CREATE INDEX IF NOT EXISTS idx_general_kb_vector
+ON general_medical_knowledge
 USING hnsw (embedding vector_cosine_ops);
+
+
+-- 5. User Biometrics (Apple Watch / Withings daily snapshots)
+-- One row per day per user. NULL means "not measured today".
+CREATE TABLE IF NOT EXISTS user_biometrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    recorded_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'apple_watch',
+    hrv_ms REAL,
+    resting_hr_bpm REAL,
+    peak_hr_bpm REAL,
+    steps INT,
+    sleep_score INT,
+    sleep_hours REAL,
+    respiratory_rate REAL,
+    skin_temp_delta_f REAL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, recorded_at, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_biometrics_user_date
+ON user_biometrics(user_id, recorded_at DESC);
+
+
+-- 6. User Alerts (proactive anomaly notifications)
+-- status flow: dormant -> active -> acknowledged. force_trigger flips dormant->active.
+CREATE TABLE IF NOT EXISTS user_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    alert_type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'warning',
+    status VARCHAR(20) NOT NULL DEFAULT 'dormant',
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    metric_data JSONB,
+    triggered_at TIMESTAMP WITH TIME ZONE,
+    acknowledged_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_alerts_user_status
+ON user_alerts(user_id, status);
