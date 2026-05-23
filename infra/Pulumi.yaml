@@ -6,7 +6,8 @@ runtime:
 description: MediAgent health assistant infrastructure on Google Cloud
 config:
   gcp:project:
+    value: ""
     description: Google Cloud project ID
   gcp:region:
-    default: us-central1
+    value: us-central1
     description: Google Cloud region

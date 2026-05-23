@@ -6,7 +6,6 @@ from app.domains.telegram.bot import bot
 router = APIRouter(prefix="/api/telegram", tags=["Telegram Bot"])
 logger = logging.getLogger("health_assistant.telegram.router")
 
-# Track the polling thread
 polling_thread = None
 
 def start_bot_polling():

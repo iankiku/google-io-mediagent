@@ -35,3 +35,6 @@ mcp.json
 
 # Seed datasets (medical reference corpora — too large for git)
 backend/data/
+
+# Local scratch
+temp/

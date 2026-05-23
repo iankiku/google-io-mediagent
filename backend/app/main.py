@@ -14,16 +14,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for Next.js frontend
+# Setup CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register domain routers
+# Register routers
 app.include_router(agent_registry_router)
 app.include_router(orchestration_router)
 app.include_router(ingestion_router)
@@ -35,9 +35,9 @@ app.include_router(debug_router)
 
 @app.on_event("startup")
 def on_startup():
-    # 1. Initialize Postgres Database schemas and pgvector indexes
+    # Init DB
     initialize_database()
-    # 2. Run Telegram bot listener in a background daemon thread
+    # Start Bot
     start_bot_polling()
 
 @app.get("/")
