@@ -7,6 +7,7 @@ from app.core.config import client, DEFAULT_BASE_AGENT
 from app.domains.agents.deep_insights_agent.deep_insights_pipeline import (
     DEFAULT_BASE_ROLE,
     build_grounded_system_instruction,
+    maybe_generate_general_response,
     run_retrieval,
     synthesize_grounded_answer,
 )
@@ -76,10 +77,35 @@ def router_node(state: AgentState) -> dict:
         "logs": logs
     }
 
+# Logical pipeline identifiers (mirrors orchestration/router.py). Kept here so
+# the graph stays self-defensive when invoked directly (e.g. from the Telegram bot).
+_LOGICAL_PIPELINE_AGENT_IDS = {
+    "deep-insights-agent",
+    "deep_insights_agent",
+    "deep-insights",
+    "deep_insights",
+    "reports-agent",
+    "reports_agent",
+    "scans-agent",
+    "scans_agent",
+    "research-agent",
+    "research_agent",
+}
+
+
+def _normalize_managed_agent_id(requested: Optional[str]) -> str:
+    if not requested:
+        return DEFAULT_BASE_AGENT
+    if requested.strip().lower() in _LOGICAL_PIPELINE_AGENT_IDS:
+        return DEFAULT_BASE_AGENT
+    return requested
+
+
 # Node 2: Execution
 def execution_node(state: AgentState) -> dict:
     latest_input = state.get("latest_input", "")
-    target_agent_id = state.get("target_agent_id") or DEFAULT_BASE_AGENT
+    requested_target = state.get("target_agent_id") or DEFAULT_BASE_AGENT
+    target_agent_id = _normalize_managed_agent_id(requested_target)
     system_instruction = state.get("system_instruction", "")
     tools = state.get("tools", [])
     logs = state.get("logs", [])
@@ -87,6 +113,22 @@ def execution_node(state: AgentState) -> dict:
     user_id = state.get("user_id")
 
     logs.append(f"[Executor] Running deep insights pipeline for query: '{latest_input}'")
+    if requested_target != target_agent_id:
+        logs.append(
+            f"[Executor] Normalized logical pipeline id '{requested_target}' "
+            f"to managed agent '{target_agent_id}'."
+        )
+
+    fast_response, fast_logs = maybe_generate_general_response(latest_input)
+    if fast_response is not None:
+        for log_line in fast_logs:
+            logs.append(log_line.replace("[DeepInsights]", "[Executor]"))
+        logs.append("[Executor] Returned fast-path general response.")
+        return {
+            "agent_response": fast_response,
+            "iteration": iteration,
+            "logs": logs,
+        }
 
     retrieval_result = run_retrieval(latest_input, user_id)
 

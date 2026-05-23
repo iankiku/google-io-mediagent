@@ -12,6 +12,7 @@ import {
 } from "@assistant-ui/react";
 import {
   ArrowUpIcon,
+  BriefcaseMedical,
   MessageSquare,
   Save,
   SquareIcon,
@@ -19,6 +20,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Orb } from "./Orb";
 import { ZoeAssistantProvider } from "./ZoeAssistantProvider";
 import { ZoeLogo } from "./ZoeLogo";
@@ -66,6 +68,7 @@ function TalkScene({
   onPendingConsumed?: () => void;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  const router = useRouter();
   const aui = useAui();
   const {
     recording,
@@ -116,6 +119,7 @@ function TalkScene({
           turnCount={turnCount}
           onSave={saveTranscript}
           onOpenChat={() => setChatOpen(true)}
+          onOpenAppointmentFlow={() => router.push("/talk/appointment-return")}
           chatHidden={chatOpen}
         />
       </section>
@@ -401,12 +405,14 @@ function ControlsBar({
   turnCount,
   onSave,
   onOpenChat,
+  onOpenAppointmentFlow,
   chatHidden,
 }: {
   mode: OrbMode;
   turnCount: number;
   onSave: () => void;
   onOpenChat: () => void;
+  onOpenAppointmentFlow: () => void;
   chatHidden: boolean;
 }) {
   return (
@@ -435,6 +441,16 @@ function ControlsBar({
       >
         <MessageSquare className="w-4 h-4 text-foreground/80" />
         <span className="text-sm font-medium">Chat with Zoe</span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenAppointmentFlow}
+        className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-card text-foreground ring-1 ring-foreground/10 shadow-[0_6px_18px_-8px_rgba(20,20,40,0.18)] hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+      >
+        <BriefcaseMedical className="w-4 h-4 text-foreground/80" />
+        <span className="text-sm font-medium">
+          Just came back from an appointment
+        </span>
       </button>
     </div>
   );

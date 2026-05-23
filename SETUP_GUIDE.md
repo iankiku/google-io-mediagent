@@ -67,6 +67,17 @@ We use `pgvector` for medical record search.
   - Frontend: http://localhost:3000
   - Backend: http://localhost:8000
 
+### 5. Launch Status After Recent UI Changes
+- **No new launch command is required.** The new appointment-return flow uses the same startup path (`make dev`).
+- New frontend route available after startup: `http://localhost:3000/talk/appointment-return`
+- The chat on that route always uses the Deep Insights pipeline (HyDE + rerank + grounded synthesis). The frontend does **not** send an `agent_id`; the backend resolves the underlying Managed Agent automatically.
+- Greetings / small-talk ("hi", "thanks", "how are you?") skip retrieval and answer instantly via a fast-path classifier.
+
+### 6. Telegram Bot Polling
+- Backend startup runs a synchronous preflight against Telegram's `getUpdates`. If another bot instance is already polling the same token, polling is **disabled in this process** and a single warning is logged (no more 409 spam).
+- To disable Telegram polling entirely in a backend instance, set: `TELEGRAM_DISABLE_POLLING=1`.
+- Status: `GET http://localhost:8000/api/telegram/status` returns `{ status, bot_running, disabled_reason }`.
+
 ---
 
 ## 🧪 Testing the 4 Agents

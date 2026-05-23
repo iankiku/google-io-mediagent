@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,6 +65,69 @@ def _import_backend_modules() -> tuple[Any, Any, Any, Any]:
     from app.domains.retrieval.services import retrieve
 
     return client, retrieve, RetrievalResult, DEFAULT_BASE_AGENT
+
+
+# Strictly greetings, thanks, farewells, and identity small-talk.
+# Anything else (including ambiguous health questions) must go through the
+# full pipeline. We intentionally keep this conservative.
+_FAST_PATH_PATTERNS = (
+    # Greetings
+    r"^(hi|hii+|hey+|hello+|yo|sup|howdy|namaste|salaam|hola|"
+    r"good\s*(morning|afternoon|evening|night))\b[\s!,.?]*"
+    r"(zoe|zoie)?[\s!,.?]*$",
+    # Thanks / farewells
+    r"^(thanks|thank\s*you|thx|ty|cheers|much\s*appreciated)[\s!.?]*$",
+    r"^(bye|goodbye|see\s*ya|see\s*you|talk\s*later|cya)[\s!.?]*$",
+    # Identity / capability small-talk
+    r"^how\s*('?s|\s*is)?\s*(it\s*going|you\s*doing|are\s*you)[\s?.!]*$",
+    r"^(who|what)\s*are\s*you[\s?.!]*$",
+    r"^what\s*(can|do)\s*you\s*do[\s?.!]*$",
+    r"^what'?s\s*up[\s?.!]*$",
+    r"^are\s*you\s*there[\s?.!]*$",
+)
+
+
+def _is_general_query(query: str) -> bool:
+    """Return True only for greetings / small-talk; anything medical or unclear goes through retrieval."""
+    cleaned = query.strip().lower()
+    if not cleaned:
+        return False
+    return any(re.fullmatch(pattern, cleaned) is not None for pattern in _FAST_PATH_PATTERNS)
+
+
+def maybe_generate_general_response(query: str) -> tuple[str | None, list[str]]:
+    """
+    Fast path for greetings / small-talk to avoid retrieval+rerank cost.
+    Returns (response, logs). response is None when the query should use Deep Insights.
+    """
+    if not _is_general_query(query):
+        return None, []
+
+    logs = ["[DeepInsights] Fast-path matched greeting/small-talk. Skipping retrieval pipeline."]
+    client, _, _, _ = _import_backend_modules()
+    from google.genai import types as _types
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=query.strip(),
+            config=_types.GenerateContentConfig(
+                system_instruction=(
+                    "You are Zoe, a warm and friendly health companion. "
+                    "The user has sent a greeting or general small-talk message. "
+                    "Reply briefly in 1-2 sentences, warm and conversational. "
+                    "Do NOT mention retrieval pipelines, agents, or internal system details. "
+                    "If they greet you, greet them back and gently invite them to share "
+                    "how they're feeling or ask about their records."
+                ),
+            ),
+        )
+        text = (response.text or "").strip()
+        logs.append("[DeepInsights] Fast-path response generated successfully.")
+        return text or "Hi! How can I help you today?", logs
+    except Exception as exc:
+        logs.append(f"[DeepInsights] Fast-path generation failed: {exc}")
+        return "Hi! How can I help you today?", logs
 
 
 def load_settings(env_file: str | Path | None = None) -> Settings:
@@ -225,6 +289,19 @@ def run_pipeline(
         f"[DeepInsights] Running HyDE retrieval for query: '{cleaned_query}'",
         f"[DeepInsights] user_id={user_id or '(none)'} k_iterations={resolved_k} top_k={resolved_top_k}",
     ]
+
+    fast_response, fast_logs = maybe_generate_general_response(cleaned_query)
+    if fast_response is not None:
+        logs.extend(fast_logs)
+        return PipelineResult(
+            query=cleaned_query,
+            user_id=user_id or "",
+            hypothetical_answers=[],
+            contexts=[],
+            final_answer=fast_response,
+            managed_agent_id=resolved_agent,
+            logs=logs,
+        )
 
     retrieval_result = run_retrieval(
         cleaned_query,
