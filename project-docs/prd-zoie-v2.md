@@ -151,6 +151,33 @@ Deep module. Holds every citable medical fact. The product invariant runs throug
 - **Data loading:** one-time SQL seed at startup. LOINC + RxNorm + ICD-10 ship as Postgres tables (LOINC subset of common outpatient labs, RxNorm subset of common chronic-disease meds, ICD-10 chapter headings). MedlinePlus scrape into the existing `general_medical_knowledge` table with `disease_category='medlineplus'` and `source_title=<article URL>`.
 - **Validator-node integration:** the LangGraph validator (`graph.py`) gains a citation-presence check — any agent response containing identifiable medical claims must have at least one citation token in its output, otherwise validation fails and the loop retries with a stricter system instruction.
 
+#### NEW: `backend/app/domains/retrieval/`
+
+Deep module. Iterative HyDE retrieval + MEDGemma reranker — the agent memory context layer. Every grounded answer flows through here. Replaces the v1 single-shot pgvector query that `execution_node` does today.
+
+- **Interface (kept small and testable):**
+  - `retrieve(user_id, query, k_iterations=5, top_k=2) -> RetrievalResult` — returns `{contexts, hypothetical_answers, final_top_k}`
+  - `embed_query(text) -> list[float]` — Gemini text embedding (passthrough)
+  - `embed_image(bytes, mime_type) -> list[float]` — Gemini multimodal embedding for image inputs
+  - `MedicalReranker.rerank(query, contexts) -> list[ScoredContext]` — ABC with two implementations: `MedGemmaReranker` (Vertex, v1.1) and `FlashReranker` (Gemini 2.5 Flash with a medical-reranker prompt, used in v1)
+
+- **Pipeline (canonical 5-iteration HyDE):**
+  1. User query enters via `retrieve()`.
+  2. **Iteration loop ×5:** Gemini 2.5 Flash generates a *hypothetical answer* to the query (optionally conditioned on contexts accumulated so far) → embed → pgvector search across `user_record_embeddings` + `general_medical_knowledge_embeddings` → append top-N results to `contexts[]`, deduped by record id.
+  3. **Rerank:** `MedicalReranker.rerank(query, contexts)` scores every accumulated context against the **original** user query, returns top 2.
+  4. **Synthesis:** Gemini 2.5 Pro generates the final answer using only the top 2 contexts as grounded source. Output flows through the grounding citation invariant.
+
+- **Why HyDE:** patient queries (*"is my cholesterol bad?"*) have weak vocabulary overlap with the source corpora (*"low-density lipoprotein"*). Generating a hypothetical answer pulls clinical vocabulary into the search vector, dramatically improving recall.
+- **Why iterate:** each loop broadens coverage without losing focus — later hypotheticals see earlier contexts and refine.
+- **Why MEDGemma rerank:** the loop produces 25+ candidates; medical-fine-tuned reranking prevents irrelevant matches from leaking into synthesis. Generic similarity scoring is not enough at the scale of accumulated candidates.
+- **Why Gemini 2.5 Pro for synthesis:** the final answer is the highest-stakes step (citation discipline, register, grounding fidelity) → Pro tier. Flash stays in the iteration loop where speed matters and individual calls are cheap.
+
+- **Ingestion integration (modifies `domains/ingestion/`):** image files (`image/jpeg`, `image/png`, `image/heic`) call `retrieval.embed_image()` alongside the existing MedGemma extraction path. Image embeddings land in the same 768d vector space as text chunks, so Rx-bottle photos, scan images, and handwritten notes are retrievable by the same query path as PDFs and check-in text.
+
+- **LangGraph integration:** `execution_node` replaces its direct pgvector call with `retrieval.retrieve(user_id, query)`. The top 2 contexts become the `[Grounded Medical Context]` block in the existing system instruction. The validator's citation-invariant check continues to enforce that synthesized output cites those contexts (record ids surface as `[doc:<record_id>]` tokens).
+
+- **MEDGemma deployment posture:** MEDGemma on Vertex AI ships as v1.1. For v1, the reranker is `FlashReranker` behind the same `MedicalReranker` interface — a drop-in swap when Vertex MEDGemma is provisioned. The interface contract is what matters; the model behind it is swappable.
+
 #### NEW: `backend/app/domains/checkins/`
 
 - **Interface:**
@@ -301,10 +328,12 @@ Cuts listed in least-painful-first order. Each removes work without breaking the
 4. Drop dashboard to one panel — the symptom severity trend chart only. No multi-tab dashboard.
 5. Cut ingestion types from 5 to 2: lab PDF + voice note. Act 3 needs lab; Act 1 needs voice. Skip rx-bottle, md-note, scan-report ingestion paths if needed.
 6. Drop the cron-driven proactive scheduler; expose a hidden admin button on the dashboard that calls `checkins.force_trigger` to fire the Act 1 escalation at the exact moment you want it on stage. The rule engine itself can ship later.
+7. Drop HyDE iteration count from 5 → 2 (or 1). Pipeline structure stays; loop count is a one-line constant. At 1 iteration the architecture reduces to "Flash generates hypothetical → search pgvector → rerank → Pro synthesizes" — still strictly better than v1's literal-query single-shot retrieval.
+8. Drop the image-embedding ingestion path (`embed_image`). Images continue to flow through MedGemma OCR + structured extraction only; image retrieval is post-hackathon.
 
 ### Open dependencies surfaced during synthesis
 
-- **MEDGemma Vertex deployment** is not actually wired in the current codebase — `process_medical_file_with_medgemma` uses Gemini 2.5 Flash with a medical system prompt. v2 keeps this; "MEDGemma" remains a pitch label. If a teammate wants real MEDGemma, they own the Vertex deployment as a separate task — not blocking for the demo path.
+- **MEDGemma Vertex deployment** is now spec'd as the *reranker* inside `domains/retrieval/`, not the primary extractor (extraction stays Gemini 2.5 Flash with a medical system prompt for v1). For v1 the reranker is `FlashReranker` (Gemini 2.5 Flash with a medical-reranker prompt); Vertex MEDGemma ships as v1.1 behind the same `MedicalReranker` interface — drop-in swap, no caller changes. "MEDGemma" stays a pitch label until the Vertex deployment lands.
 - **LOINC + RxNorm + ICD-10 reference data** has to be downloaded once and committed as a SQL seed under `backend/app/core/db_init.sql` or a separate seeds folder. Both are free / public-domain (LOINC from Regenstrief, RxNorm from NLM, ICD-10-CM from CMS). Curate to a subset of ~200 lab tests + ~100 chronic-disease meds + chapter-level ICD-10 to keep load fast.
 - **Gemini 2.5 Flash streaming audio** is the interpreter's STT path. If latency or Indian-English handling fails integration testing, fall back to Deepgram nova-3 behind a config flag — do not hard-code Deepgram.
 - **No issue tracker is currently wired to this repo.** This PRD is published to `project-docs/prd-zoie-v2.md`. When the tracker is configured (Linear, GitHub Issues, or Notion), create an issue mirroring this PRD and apply the `ready-for-agent` label.

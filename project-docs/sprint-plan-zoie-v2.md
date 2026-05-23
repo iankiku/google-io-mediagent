@@ -21,6 +21,10 @@ v2 full scope = ~15.5 person-days. **3 hours = ~6 person-hours with two engineer
 7. ✂ `grounding/` LOINC/RxNorm/ICD-10 reference tables → inline a 10-row Python dict for the 2 demo lab codes + 1 demo medication; full tables become v1.1
 8. ✂ `visit_sessions` + `visit_turns` schema → write the interpreter session as a normal `user_medical_records` row with `file_type='visit_transcript'`; full schema later
 9. ✂ Real-time streaming WebSocket → push-to-talk submits discrete audio blobs to a POST endpoint; no streaming required
+10. ✂ HyDE loop 5 → **2 iterations**. Architecture stays; loop count is a one-line constant. Still strictly better than v1's literal-query single-shot retrieval.
+11. ✂ Real MEDGemma reranker → `FlashReranker` shim behind the `MedicalReranker` interface (Gemini 2.5 Flash with a medical-reranker prompt). Drop-in swap when Vertex MEDGemma ships post-hackathon.
+12. ✂ Image-embedding ingestion (`embed_image`) — out for 3hr; images continue through existing extraction-only path.
+13. ✂ Telegram voice-note inbound — `force_trigger` and demo check-ins use text. Voice-note ingestion is v1.1.
 
 Anything that survives those cuts is in scope below. Anything not below is **explicitly out** for the 3 hours.
 
@@ -40,11 +44,11 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 
 ### NEW in v2 — must build in 3 hours
 - [ ] **Live interpreter MVP** — push-to-talk page + audio POST endpoint + 2-prompt Gemini cleanup → rolling transcript display (Act 2 hero)
+- [ ] **HyDE retrieval pipeline** — `domains/retrieval/` with 2-iteration HyDE loop + `FlashReranker` + Gemini 2.5 Pro synthesis. Replaces `execution_node`'s direct pgvector call. (agent memory context layer)
 - [ ] **Citation chip rendering** in chat responses + product-invariant system instruction in `execution_node` + citation-presence check in `validator_node` (the trust posture)
 - [ ] **Inline grounding mini-table** — Python dict with LOINC for LDL + glucose, RxNorm for lisinopril; surfaces in lab explanations as cited values
 - [ ] **Demo seed for Ravi Kumar** — patient row, 7 days of Indian-English check-ins, scripted biometric arc, one lab PDF with LDL=160, one Rx bottle pre-ingested
-- [ ] **Telegram voice-note check-in flow** — bot accepts voice notes, calls ingestion with `file_type='checkin'`, replies with structured confirmation
-- [ ] **`force_trigger` admin button** on the dashboard → fires the Act 1 proactive ping via Telegram
+- [ ] **`force_trigger` admin button** on the dashboard → fires the Act 1 proactive ping via Telegram (text-only)
 - [ ] **`SymptomTrend.tsx`** — single chart of headache severity from check-in history
 
 ### Cut, fake, or stub for the 3 hours (do these later)
@@ -52,7 +56,10 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 - `visit_sessions` + `visit_turns` schema
 - Streaming STT via WebSocket
 - `checkins/` domain proper (rule eval, Gemini Flash message composer for non-demo paths)
-- Real MEDGemma deployment on Vertex
+- **Real MEDGemma on Vertex AI as reranker** — replaced by `FlashReranker` shim behind same `MedicalReranker` interface
+- **HyDE 5-iteration loop** — runs at 2 iterations; loop count is a constant, full canonical loop ships post-hackathon
+- **Image-embedding ingestion path** (`embed_image`) — Gemini multimodal embeddings for images, retrievable alongside text. v1.1.
+- **Telegram voice-note inbound** — demo uses text check-ins; voice-note ingestion is v1.1
 - 3 of 5 ingestion specialists (rx_bottle, scan_report, md_note get one-prompt extraction reusing existing path)
 - Appointment booking interactivity
 - Multi-user, dyad, clinician-facing surface — all per PRD scope
@@ -76,10 +83,10 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 
 ---
 
-### Block 2: Live Interpreter MVP (0:20 — 1:40) 🔴 CRITICAL — HERO OF ACT 2
+### Block 2: Live Interpreter MVP (0:20 — 1:30) 🔴 CRITICAL — HERO OF ACT 2
 **Goal:** Two humans push-to-talk into a shared device, see cleaned bidirectional transcript on screen.
 
-This is the longest block. 80 minutes. Two engineers in parallel — backend owns the audio endpoint + cleanup prompts, frontend owns the page.
+70 minutes. Two engineers in parallel — backend owns the audio endpoint + cleanup prompts, frontend owns the page.
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
@@ -90,10 +97,10 @@ This is the longest block. 80 minutes. Two engineers in parallel — backend own
 | 2.5 | Return `{ raw_transcript, cleaned, extracted, role, turn_index }` — raw_transcript can be Gemini's own STT output if available, else echo input filename | 5 min | Backend |
 | 2.6 | Wire `interpreter` router into `app/main.py` | 2 min | Backend |
 | 2.7 | Create `frontend/src/features/interpreter/InterpreterPage.tsx` mounted at `/interpreter` route | 10 min | Frontend |
-| 2.8 | Build push-to-talk: two big buttons (PATIENT / DOCTOR), MediaRecorder API on mousedown/touchstart, stop+upload on mouseup/touchend | 15 min | Frontend |
+| 2.8 | Build push-to-talk: two big buttons (PATIENT / DOCTOR), MediaRecorder API on mousedown/touchstart, stop+upload on mouseup/touchend | 10 min | Frontend |
 | 2.9 | POST audio blob + role to `/api/interpreter/turn`, append response to a rolling transcript list in component state | 10 min | Frontend |
-| 2.10 | Render each turn as a row: speaker label badge + 3 panels (RAW / CLEANED / EXTRACTED chips). Tailwind only, no charts. | 10 min | Frontend |
-| 2.11 | Sanity test: speak into laptop mic as patient ("I am having loose motions since two days"), confirm cleaned text reads like "diarrhea, onset 2 days ago" or similar | 5 min | Both |
+| 2.10 | Render each turn as a row: speaker label badge + 3 panels (RAW / CLEANED / EXTRACTED chips). Tailwind only, no charts. | 7 min | Frontend |
+| 2.11 | Sanity test: speak into laptop mic as patient ("I am having loose motions since two days"), confirm cleaned text reads like "diarrhea, onset 2 days ago" or similar | 3 min | Both |
 
 **Checkpoint:** One device, two roles, push-to-talk, cleaned transcript appears within ~1.5s. **If this works, Act 2 is in the bag.**
 
@@ -101,52 +108,64 @@ This is the longest block. 80 minutes. Two engineers in parallel — backend own
 
 ---
 
-### Block 3: Grounding Posture + Citation Chips (1:40 — 2:10) 🔴 CRITICAL — TRUST LAYER
-**Goal:** Every medical claim Zoie produces shows a citation chip the user can click. Validator enforces it.
+### Block 3: Grounding + Retrieval Pipeline (1:30 — 2:20) 🔴 CRITICAL — TRUST + MEMORY LAYER
+**Goal:** Agent memory context layer is live (HyDE loop + reranker + Pro synthesis), every medical claim shows a clickable citation chip, validator enforces citations.
+
+50 minutes. Three parallel tracks: BE1 owns the retrieval pipeline + execution_node swap (critical path), BE2 owns grounding inline + ingestion lookups, FE owns the citation chip.
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 3.1 | Add `INVARIANT_SYSTEM_INSTRUCTION` constant to `orchestration/graph.py` — the no-uncited-medical-synthesis rule + boundary line, verbatim from PRD | 5 min | Backend |
-| 3.2 | Append `INVARIANT_SYSTEM_INSTRUCTION` to `system_instruction` inside `execution_node` before the `[Grounded Medical Context]` block | 3 min | Backend |
-| 3.3 | In `validator_node`, after parsing the existing validator decision, add a regex check: if response contains medical keywords (`mg/dL`, `cholesterol`, `glucose`, `BP`, `HbA1c`, etc.) AND no citation token (`LOINC:`, `MedlinePlus:`, `[doc:`, `RxNorm:`, `ICD-10:`), set `validation_passed = false` with feedback "missing citation" | 10 min | Backend |
-| 3.4 | Create `backend/app/domains/grounding/inline.py` — a 10-row Python dict mapping `'LDL'` → `{'loinc': '13457-7', 'name': 'LDL cholesterol', 'unit': 'mg/dL', 'ref_range_high': 100}` etc. for: LDL, total cholesterol, fasting glucose, HbA1c, systolic BP, diastolic BP. Plus `'lisinopril'` → `{'rxnorm': '29046', 'class': 'ACE inhibitor', 'common_side_effects': ['dry cough', 'dizziness']}`. | 10 min | Backend |
-| 3.5 | In `ingestion/services.py` `process_medical_file_with_medgemma`: after Gemini returns the `ClinicalSummary`, look up each `lab_metric.metric` and each `medication` against `grounding.inline`, append matched LOINC/RxNorm into the chunk that gets embedded so the citation token surfaces in retrieved context | 10 min | Backend |
-| 3.6 | Frontend: create `components/ui/CitationChip.tsx` — a small badge (e.g. `LOINC:13457-7`) that opens a `Dialog` with the inline metadata when clicked | 10 min | Frontend |
-| 3.7 | In `MessageBubble.tsx`, regex-detect citation tokens in agent responses, replace with rendered `<CitationChip />` components | 5 min | Frontend |
+| 3.0 | Create `backend/app/domains/retrieval/` with `services.py`, `schemas.py`. Define `MedicalReranker` ABC + `FlashReranker` impl + `MedGemmaReranker` stub (raises `NotImplementedError` with v1.1 Vertex deployment note) | 8 min | BE1 |
+| 3.0b | Implement `retrieve(user_id, query, k_iterations=2, top_k=2)`: HyDE loop — each iteration calls Gemini 2.5 Flash to generate a hypothetical answer (conditioned on accumulated `contexts[]`), embed it, search pgvector (user records + general KB), dedup append. Reuse existing embedding + pgvector helpers from `agent_registry` | 12 min | BE1 |
+| 3.0c | Implement `FlashReranker.rerank(query, contexts)` — one Gemini 2.5 Flash call with a medical reranker prompt + JSON schema `[{record_id, score, reason}]`, return top 2 sorted by score | 8 min | BE1 |
+| 3.0d | Modify `execution_node` in `orchestration/graph.py`: replace direct pgvector call with `retrieval.retrieve(user_id, query)`. Swap synthesis model to `gemini-2.5-pro` for the final grounded answer. Top-2 contexts feed the existing `[Grounded Medical Context]` block | 7 min | BE1 |
+| 3.1 | Add `INVARIANT_SYSTEM_INSTRUCTION` constant to `orchestration/graph.py` — no-uncited-medical-synthesis rule + boundary line, verbatim from PRD. Append to `execution_node` system instruction before the context block | 3 min | BE1 |
+| 3.2 | In `validator_node`, regex check: medical keywords (`mg/dL`, `cholesterol`, `glucose`, `BP`, `HbA1c`) AND no citation token (`LOINC:`, `RxNorm:`, `MedlinePlus:`, `[doc:`, `ICD-10:`) → `validation_passed=false`, feedback "missing citation" | 7 min | BE1 |
+| 3.4 | Create `backend/app/domains/grounding/inline.py` — Python dict for LDL, total cholesterol, fasting glucose, HbA1c, systolic BP, diastolic BP (LOINC + unit + ref range) + lisinopril (RxNorm + class + side effects) | 8 min | BE2 |
+| 3.5 | In `ingestion/services.py` `process_medical_file_with_medgemma`: after Gemini returns `ClinicalSummary`, look up each `lab_metric.metric` and each `medication` against `grounding.inline`, append matched LOINC/RxNorm into the chunk text that gets embedded so citation tokens surface in retrieved context | 10 min | BE2 |
+| 3.6 | Frontend: `components/ui/CitationChip.tsx` — small badge (e.g. `LOINC:13457-7`) that opens a `Dialog` with inline metadata on click. In `MessageBubble.tsx`, regex-detect citation tokens in agent responses and render as `<CitationChip />` | 15 min | FE |
+| 3.7 | Smoke test: ask "what does my LDL value mean?" against Ravi's seed (post-Block 4 — defer if needed) → confirm a relevant context is retrieved by HyDE, reranked to top 2, and cited in the Pro-synthesized answer | 5 min | BE1 |
 
-**Checkpoint:** Ask the chat "what does my LDL value mean?" → response includes the actual value from Ravi's records, references `LOINC:13457-7` as a clickable chip, and includes the boundary line *"I'm not a doctor..."* somewhere visible.
+**BE1 critical path:** 3.0 → 3.0b → 3.0c → 3.0d → 3.1 → 3.2 → 3.7 ≈ 50 min sequential. BE2 (3.4 + 3.5 = 18 min) and FE (3.6 = 15 min) run fully in parallel.
 
-**Failure escape hatch:** If validator regex causes loops, set `needs_validation=False` for the demo and rely on system-instruction-layer enforcement only. Add a comment noting the gap.
+**Checkpoint:** Ask the chat "what does my LDL value mean?" → HyDE generates a hypothetical, retrieves Ravi's lab + an inline-grounding chunk, reranker returns top 2, Pro synthesizes with `LOINC:13457-7` and `[doc:...]` clickable chips, plus the boundary line *"I'm not a doctor..."* visible.
+
+**Failure escape hatches:**
+- HyDE loop slow or noisy → drop to 1 iteration (one-line constant). Pipeline interface unchanged.
+- `FlashReranker` produces nonsense → fall back to deterministic vector-similarity ranking (no LLM rerank). Comment that MEDGemma replaces this in v1.1.
+- Pro synthesis adds too much latency → swap back to Flash for synthesis. Quality drop is real but structure still demonstrates.
+- Validator regex causes loops → `needs_validation=False`, rely on prompt-layer invariant only.
 
 ---
 
-### Block 4: Demo Surface (2:10 — 2:40) 🟡 IMPORTANT — ACT 1 + ACT 3 GLUE
+### Block 4: Demo Surface (2:20 — 2:45) 🟡 IMPORTANT — ACT 1 + ACT 3 GLUE
 **Goal:** Ravi Kumar exists with believable data. The proactive escalation button works. Lab upload still works. The dashboard shows one symptom trend chart.
 
+25 minutes. BE + FE in parallel.
+
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 4.1 | `backend/app/core/seed_demo.py`: insert user "Ravi Kumar" with `phone='+15551234567'`, `telegram_id='ravi_demo'`. Insert 7 daily check-in `user_medical_records` rows with `file_type='checkin'` and Indian-English text + headache severity 3, 4, 5, 6, 7, 5, 7 over 7 days. Insert one lab PDF record with `extracted_summary` containing LDL=160, fasting glucose=108. Insert one Rx record for lisinopril. Generate embeddings for all. Idempotent: skip if user exists. | 15 min | Backend |
+| 4.1 | `backend/app/core/seed_demo.py`: insert user "Ravi Kumar" with `phone='+15551234567'`, `telegram_id='ravi_demo'`. Insert 7 daily check-in `user_medical_records` rows with `file_type='checkin'` and Indian-English text + headache severity 3, 4, 5, 6, 7, 5, 7 over 7 days. Insert one lab PDF record with `extracted_summary` containing LDL=160, fasting glucose=108. Insert one Rx record for lisinopril. Generate embeddings for all. Idempotent: skip if user exists. | 12 min | Backend |
 | 4.2 | Run the seed once: `python -m app.core.seed_demo` | 2 min | Backend |
-| 4.3 | `POST /api/checkins/force_trigger?user_id=...` — backend endpoint that (a) fetches the user's recent context, (b) calls Gemini 2.5 Flash with a "compose a Hindi-English check-in about elevated heart rate" prompt, (c) sends the result to the user's Telegram chat via the existing bot service. **Hidden** — no UI link, called from the admin button only. | 10 min | Backend |
-| 4.4 | Frontend: add a small `[Demo: trigger proactive ping]` button on the dashboard, gated by `?demo=1` query param, calls `/api/checkins/force_trigger` | 5 min | Frontend |
-| 4.5 | `frontend/src/features/dashboard/SymptomTrend.tsx` — fetch the user's check-in records, plot headache severity over time using recharts (already in dependencies for MetricTrends). Click a point → list contributing check-ins. | 10 min | Frontend |
-| 4.6 | Telegram bot: on voice-note inbound, download audio, call `ingestion.ingest_medical_record` with `file_type='checkin'`, reply with the structured confirmation from PRD §User Stories | 10 min | Backend |
+| 4.3 | `POST /api/checkins/force_trigger?user_id=...` — backend endpoint that (a) fetches the user's recent context, (b) calls Gemini 2.5 Flash with a "compose a Hindi-English check-in about elevated heart rate" prompt, (c) sends the result to the user's Telegram chat via the existing bot service. **Hidden** — no UI link, called from the admin button only. | 8 min | Backend |
+| 4.4 | Frontend: small `[Demo: trigger proactive ping]` button on the dashboard, gated by `?demo=1` query param, calls `/api/checkins/force_trigger` | 5 min | Frontend |
+| 4.5 | `frontend/src/features/dashboard/SymptomTrend.tsx` — fetch the user's check-in records, plot headache severity over time using recharts (already in deps). Click a point → list contributing check-ins. | 12 min | Frontend |
 
-**Checkpoint:** Open dashboard with `?demo=1`. See Ravi's last 7 days of headache severity rising. Click demo button → patient's Telegram pings with a Hindi-English check-in. Forward a lab PDF to the bot → see it explained back with citation chips.
+**Checkpoint:** Open dashboard with `?demo=1`. See Ravi's last 7 days of headache severity rising. Click demo button → patient's Telegram pings with a Hindi-English check-in. Forward a lab PDF to the bot → see it explained back with citation chips, powered end-to-end by the HyDE retrieval pipeline.
 
-**Time pressure escape hatch:** If 4.6 (Telegram voice-note in) breaks, pre-script Act 1's check-in to be a text message instead of a voice note. The Telegram domain already accepts text.
+**Time pressure escape hatch:** If `force_trigger` Telegram send breaks, fall back to displaying the composed message in a frontend toast/alert — keeps the scripted Act 1 moment visible to the audience.
 
 ---
 
-### Block 5: Rehearsal + Submission (2:40 — 3:00) 🔴 CRITICAL
-**Goal:** Demo runs cleanly 3 times in a row. Submission is in.
+### Block 5: Rehearsal + Submission (2:45 — 3:00) 🔴 CRITICAL
+**Goal:** Demo runs cleanly twice in a row. Submission is in.
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 5.1 | Full rehearsal #1: Act 1 (Telegram check-in + force_trigger + lab drop) → Act 2 (interpreter, 3 patient turns + 2 doctor turns) → Act 3 (dashboard symptom trend + lab citation chips) | 6 min | All |
-| 5.2 | Fix the worst breakage from rehearsal #1 | 5 min | All |
-| 5.3 | Rehearsal #2 + final polish | 5 min | All |
-| 5.4 | Git commit + push, submit on hackathon platform | 4 min | One |
+| 5.1 | Full rehearsal #1: Act 1 (Telegram check-in + force_trigger + lab drop) → Act 2 (interpreter, 3 patient turns + 2 doctor turns) → Act 3 (dashboard symptom trend + lab citation chips + HyDE-grounded answer) | 5 min | All |
+| 5.2 | Fix the worst breakage from rehearsal #1 | 4 min | All |
+| 5.3 | Rehearsal #2 + final polish | 3 min | All |
+| 5.4 | Git commit + push, submit on hackathon platform | 3 min | One |
 
 **Checkpoint:** Submitted with a working demo path. If Block 5 reveals a fatal breakage, fall back to the v1 demo path — it still works because Block 1 verified it.
 
@@ -160,9 +179,12 @@ This is the longest block. 80 minutes. Two engineers in parallel — backend own
 | Gemini Flash audio input slow or mangling Indian English | Web Speech API STT in browser → send text to Flash for cleanup; or DEMO MODE with pre-recorded audio blobs |
 | Antigravity Interactions API not accessible | Direct `client.models.generate_content` is already the fallback path in `execution_node` |
 | Interpreter page totally fails on stage | The Act 2 hero is gone, but Acts 1 + 3 still demo via the existing chat + Telegram flows |
-| Telegram voice-note ingestion breaks | Fall back to text check-in (Telegram already handles text fine) |
+| Telegram voice-note ingestion breaks | Demo uses text check-ins by design — voice-note ingestion is v1.1 (per cut #13) |
 | Validator citation check causes infinite loops | `needs_validation=False` for the demo; rely on prompt-layer invariant only |
-| MEDGemma references in pitch don't match reality | Drop the MEDGemma callout from on-stage speech; the code uses Gemini Flash with medical system prompt — own it |
+| **HyDE loop too slow (Flash × 2 + embed + search ≈ 3–4s before rerank)** | Loop count is a constant — drop 2 → 1, or skip HyDE entirely and use literal-query retrieval. Pipeline interface unchanged. |
+| **Gemini 2.5 Pro synthesis adds latency on every chat turn** | Per-turn budget acceptable for Act 3 single answer; if it bites, swap synthesis back to Flash. Quality drop is real but structure still demonstrates. |
+| **`FlashReranker` produces noisy top-2** | Fall back to deterministic vector-similarity ranking (no LLM rerank). Comment that MEDGemma replaces this in v1.1. |
+| MEDGemma references in pitch don't match reality | MEDGemma is spec'd as the reranker behind the `MedicalReranker` interface; the `FlashReranker` shim is honest on stage — "Gemini Flash today, Vertex MEDGemma in v1.1 behind the same interface." |
 | Cloud Run deploy fails | Demo locally via `docker compose up` — still shows production-ready architecture |
 | Frontend demo data sufficient | Block 4.1 seeds Ravi explicitly; v1's hardcoded Maria demo data is the secondary fallback |
 | GCS not configured | Storage falls back to local filesystem automatically (inherited from v1) |
@@ -220,5 +242,9 @@ Per `prd-zoie-v2.md §Out of Scope` — restated here so nobody adds them at min
 - No interactive appointment booking (static confirmation panel only)
 - No multi-tab dashboard restructure (`SymptomTrend` added; rest of v1 dashboard untouched)
 - No `checkins/` rule engine (only `force_trigger` admin endpoint)
+- No real MEDGemma on Vertex (`FlashReranker` shim behind `MedicalReranker` interface)
+- No HyDE 5-iteration canonical loop (runs at 2 iterations for the sprint)
+- No image-embedding ingestion path (`embed_image` is v1.1)
+- No Telegram voice-note inbound (text-only demo path)
 
 If a teammate proposes building one of these mid-sprint, point them at this list.
