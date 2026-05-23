@@ -19,6 +19,13 @@ frontend/build/
 # Uploads (local dev)
 workspace_uploads/
 
+# Seed data corpus — large downloaded artifacts stay local, only committed code + docs in this tree
+backend/data/seed/**
+!backend/data/seed/
+!backend/data/seed/**/
+!backend/data/seed/README.md
+!backend/data/seed/lab_pdf/generate_lab_pdfs.py
+
 # Pulumi
 infra/node_modules/
 infra/.pulumi/
