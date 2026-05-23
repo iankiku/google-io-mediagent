@@ -6,25 +6,28 @@ import {
   type AssistantRuntime,
 } from "@assistant-ui/react";
 import { useMemo, type ReactNode } from "react";
-import { createZoieChatAdapter } from "./zoie-chat-adapter";
-import { ZOIE_INITIAL_MESSAGES } from "./zoie-initial-messages";
+import { createZoeChatAdapter } from "./zoe-chat-adapter";
+import { zoeSuggestionAdapter } from "./zoe-suggestions";
 import type { SettingsState } from "./types";
 
-function useZoieRuntime(tone: SettingsState["voice"]["tone"]): AssistantRuntime {
-  const adapter = useMemo(() => createZoieChatAdapter(tone), [tone]);
+function useZoeRuntime(tone: SettingsState["voice"]["tone"]): AssistantRuntime {
+  const adapter = useMemo(() => createZoeChatAdapter(tone), [tone]);
   return useLocalRuntime(adapter, {
-    initialMessages: ZOIE_INITIAL_MESSAGES,
+    initialMessages: [],
+    adapters: {
+      suggestion: zoeSuggestionAdapter,
+    },
   });
 }
 
-export function ZoieAssistantProvider({
+export function ZoeAssistantProvider({
   tone,
   children,
 }: {
   tone: SettingsState["voice"]["tone"];
   children: ReactNode;
 }) {
-  const runtime = useZoieRuntime(tone);
+  const runtime = useZoeRuntime(tone);
   return (
     <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
   );

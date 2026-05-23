@@ -1,3 +1,8 @@
+import {
+  ComposerAddAttachment,
+  ComposerAttachments,
+  UserMessageAttachments,
+} from "@/components/attachment";
 import { MarkdownText } from "@/components/markdown-text";
 import {
   Reasoning,
@@ -24,6 +29,7 @@ import {
   ErrorPrimitive,
   getMcpAppFromToolPart,
   MessagePrimitive,
+  SuggestionPrimitive,
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
@@ -41,37 +47,39 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { Orb } from "@/features/zoie/Orb";
-import { useZoieTalk } from "@/features/zoie/ZoieTalkContext";
+import { Orb } from "@/features/zoe/Orb";
+import { useZoeTalk } from "@/features/zoe/ZoeTalkContext";
 
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      className="zoe-talk aui-root aui-thread-root @container flex h-full flex-col bg-background"
       style={{
-        ["--thread-max-width" as string]: "48rem",
-        ["--composer-radius" as string]: "16px",
-        ["--composer-padding" as string]: "8px",
+        ["--thread-max-width" as string]: "44rem",
+        ["--composer-radius" as string]: "24px",
+        ["--composer-padding" as string]: "10px",
       }}
     >
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         data-slot="aui_thread-viewport"
-        className="zoie-scroll relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+        className="zoe-scroll relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
       >
-        <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-6 md:px-10 lg:px-16 pt-8">
-          <ZoieOrbHeader />
+        <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
+          <AuiIf condition={(s) => s.thread.isEmpty}>
+            <ThreadWelcome />
+          </AuiIf>
 
           <div
             data-slot="aui_message-group"
-            className="mb-10 flex flex-col gap-4 empty:hidden"
+            className="mb-10 flex flex-col gap-y-8 empty:hidden"
           >
             <ThreadPrimitive.Messages>
               {() => <ThreadMessage />}
             </ThreadPrimitive.Messages>
           </div>
 
-          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex flex-col gap-3 overflow-visible rounded-t-(--composer-radius) bg-background pb-4 md:pb-6">
+          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-background pb-4 md:pb-6">
             <ThreadScrollToBottom />
             <Composer />
           </ThreadPrimitive.ViewportFooter>
@@ -96,22 +104,50 @@ const ThreadScrollToBottom: FC = () => {
   );
 };
 
-const ZoieOrbHeader: FC = () => {
-  const { listening, onOrbTap } = useZoieTalk();
+const ThreadWelcome: FC = () => {
+  const { listening, onOrbTap } = useZoeTalk();
 
   return (
-    <div className="mb-8 flex flex-col items-center gap-8">
-      <button
-        type="button"
-        onClick={onOrbTap}
-        className="group outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-full transition-transform active:scale-95"
-        aria-label={listening ? "Stop listening" : "Tap to speak"}
-      >
-        <Orb listening={listening} />
-      </button>
-      <p className="text-sm md:text-[15px] text-foreground/80 font-medium text-center">
-        {listening ? "Listening…" : "Tap to speak or start a conversation"}
-      </p>
+    <div className="aui-thread-welcome-root my-auto flex grow flex-col">
+      <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center gap-8 py-6">
+        <button
+          type="button"
+          onClick={onOrbTap}
+          className="outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-full transition-transform active:scale-95"
+          aria-label={listening ? "Stop listening" : "Tap to speak"}
+        >
+          <Orb listening={listening} />
+        </button>
+        <div className="aui-thread-welcome-message flex max-w-md flex-col items-center justify-center px-4 text-center">
+          <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl tracking-tight duration-200">
+            Hi, I&apos;m Zoe
+          </h1>
+          <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both mt-2 text-muted-foreground text-base delay-75 duration-200">
+            {listening
+              ? "Listening…"
+              : "Tap the orb to speak, or pick a prompt below to start."}
+          </p>
+        </div>
+      </div>
+      <ThreadSuggestions />
+    </div>
+  );
+};
+
+const ThreadSuggestions: FC = () => {
+  return (
+    <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
+      <ThreadPrimitive.Suggestions>
+        {() => <ThreadSuggestionItem />}
+      </ThreadPrimitive.Suggestions>
+    </div>
+  );
+};
+
+const ThreadSuggestionItem: FC = () => {
+  return (
+    <div className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-2 @md:nth-[n+3]:block nth-[n+3]:hidden animate-in fill-mode-both duration-200">
+      <SuggestionPrimitive.Trigger send render={<Button variant="ghost" className="aui-thread-welcome-suggestion h-auto w-full @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border bg-background px-4 py-3 text-start text-sm transition-colors hover:bg-muted" />}><SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1 font-medium" /><SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 text-muted-foreground empty:hidden" /></SuggestionPrimitive.Trigger>
     </div>
   );
 };
@@ -119,9 +155,9 @@ const ZoieOrbHeader: FC = () => {
 const Composer: FC = () => {
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
-      <ComposerPrimitive.AttachmentDropzone render={<div data-slot="aui_composer-shell" className="flex w-full items-center gap-2 rounded-(--composer-radius) bg-card ring-1 ring-foreground/10 shadow-[0_8px_24px_-12px_rgba(20,20,40,0.18)] p-(--composer-padding) transition-shadow focus-within:ring-2 focus-within:ring-foreground/15" />}><ComposerPrimitive.Input
-                      placeholder="Type your question…"
-                      className="aui-composer-input max-h-32 min-h-9 flex-1 w-full resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
+      <ComposerPrimitive.AttachmentDropzone render={<div data-slot="aui_composer-shell" className="flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-background p-(--composer-padding) transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20 data-[dragging=true]:border-ring data-[dragging=true]:border-dashed data-[dragging=true]:bg-accent/50" />}><ComposerAttachments /><ComposerPrimitive.Input
+                      placeholder="Ask Zoe about sleep, HRV, workouts…"
+                      className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
                       rows={1}
                       autoFocus
                       aria-label="Message input"
@@ -132,9 +168,10 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   return (
-    <div className="aui-composer-action-wrapper relative flex shrink-0 items-center justify-end">
+    <div className="aui-composer-action-wrapper relative flex items-center justify-between">
+      <ComposerAddAttachment />
       <AuiIf condition={(s) => !s.thread.isRunning}>
-        <ComposerPrimitive.Send render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-9 rounded-xl bg-foreground text-background hover:bg-foreground/90" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
+        <ComposerPrimitive.Send render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-8 rounded-full" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
       </AuiIf>
       <AuiIf condition={(s) => s.thread.isRunning}>
         <ComposerPrimitive.Cancel render={<Button type="button" variant="default" size="icon" className="aui-composer-cancel size-8 rounded-full" aria-label="Stop generating" />}><SquareIcon className="aui-composer-cancel-icon size-3 fill-current" /></ComposerPrimitive.Cancel>
@@ -164,11 +201,11 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className="fade-in slide-in-from-bottom-1 relative flex animate-in flex-col items-start duration-150 [contain-intrinsic-size:auto_300px] [content-visibility:auto]"
+      className="fade-in slide-in-from-bottom-1 relative animate-in duration-150 [contain-intrinsic-size:auto_300px] [content-visibility:auto]"
     >
       <div
         data-slot="aui_assistant-message-content"
-        className="wrap-break-word max-w-[80%] rounded-2xl bg-zoie-lilac-soft px-4 py-3 text-[13.5px] leading-relaxed text-foreground shadow-[0_1px_2px_rgba(20,20,40,0.04)] ring-1 ring-foreground/5"
+        className="wrap-break-word px-2 text-foreground leading-relaxed"
       >
         <MessagePrimitive.GroupedParts
           groupBy={(part) => {
@@ -222,7 +259,7 @@ const AssistantMessage: FC = () => {
 
       <div
         data-slot="aui_assistant-message-footer"
-        className={cn("ms-2 hidden items-center", ACTION_BAR_HEIGHT)}
+        className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
       >
         <BranchPicker />
         <AssistantActionBar />
@@ -263,17 +300,24 @@ const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root
       data-slot="aui_user-message-root"
-      className="fade-in slide-in-from-bottom-1 flex animate-in justify-end px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto]"
+      className="fade-in slide-in-from-bottom-1 grid animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
       data-role="user"
     >
-      <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[80%]">
-        <div className="aui-user-message-content wrap-break-word rounded-2xl bg-card px-4 py-3 text-[13.5px] leading-relaxed text-foreground shadow-[0_1px_2px_rgba(20,20,40,0.04)] ring-1 ring-foreground/5 empty:hidden">
+      <UserMessageAttachments />
+
+      <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
+        <div className="aui-user-message-content wrap-break-word peer rounded-2xl bg-muted px-4 py-2.5 text-foreground empty:hidden">
           <MessagePrimitive.Parts />
         </div>
-        <div className="aui-user-action-bar-wrapper hidden">
+        <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
           <UserActionBar />
         </div>
       </div>
+
+      <BranchPicker
+        data-slot="aui_user-branch-picker"
+        className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
+      />
     </MessagePrimitive.Root>
   );
 };

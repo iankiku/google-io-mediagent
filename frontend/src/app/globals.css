@@ -40,15 +40,15 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-zoie-lilac: var(--zoie-lilac);
-  --color-zoie-lilac-soft: var(--zoie-lilac-soft);
-  --color-zoie-mint: var(--zoie-mint);
-  --color-zoie-mint-soft: var(--zoie-mint-soft);
-  --color-zoie-coral: var(--zoie-coral);
-  --color-zoie-coral-soft: var(--zoie-coral-soft);
-  --color-zoie-amber: var(--zoie-amber);
-  --color-zoie-amber-soft: var(--zoie-amber-soft);
-  --color-zoie-sand: var(--zoie-sand);
+  --color-zoe-lilac: var(--zoe-lilac);
+  --color-zoe-lilac-soft: var(--zoe-lilac-soft);
+  --color-zoe-mint: var(--zoe-mint);
+  --color-zoe-mint-soft: var(--zoe-mint-soft);
+  --color-zoe-coral: var(--zoe-coral);
+  --color-zoe-coral-soft: var(--zoe-coral-soft);
+  --color-zoe-amber: var(--zoe-amber);
+  --color-zoe-amber-soft: var(--zoe-amber-soft);
+  --color-zoe-sand: var(--zoe-sand);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -92,16 +92,16 @@
   --sidebar-border: oklch(0.9 0.004 286);
   --sidebar-ring: oklch(0.55 0.04 286);
 
-  /* Zoie accent palette */
-  --zoie-lilac: oklch(0.65 0.13 285);
-  --zoie-lilac-soft: oklch(0.93 0.04 285);
-  --zoie-mint: oklch(0.62 0.13 165);
-  --zoie-mint-soft: oklch(0.93 0.07 165);
-  --zoie-coral: oklch(0.65 0.21 25);
-  --zoie-coral-soft: oklch(0.94 0.05 25);
-  --zoie-amber: oklch(0.78 0.14 75);
-  --zoie-amber-soft: oklch(0.95 0.04 75);
-  --zoie-sand: oklch(0.96 0.01 80);
+  /* Zoe accent palette */
+  --zoe-lilac: oklch(0.65 0.13 285);
+  --zoe-lilac-soft: oklch(0.93 0.04 285);
+  --zoe-mint: oklch(0.62 0.13 165);
+  --zoe-mint-soft: oklch(0.93 0.07 165);
+  --zoe-coral: oklch(0.65 0.21 25);
+  --zoe-coral-soft: oklch(0.94 0.05 25);
+  --zoe-amber: oklch(0.78 0.14 75);
+  --zoe-amber-soft: oklch(0.95 0.04 75);
+  --zoe-sand: oklch(0.96 0.01 80);
 }
 
 .dark {
@@ -150,78 +150,122 @@
   }
 }
 
-/* ---------- Zoie Orb (CSS-painted) ---------- */
-.zoie-orb {
+/* ---------- Zoe Orb — soft cloudy Gemini-style sphere ---------- */
+.zoe-orb {
   position: relative;
   width: 220px;
   height: 220px;
   border-radius: 9999px;
+  isolation: isolate;
   background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 18%),
-    radial-gradient(circle at 36% 36%, rgba(180, 235, 235, 0.85) 0%, rgba(180, 235, 235, 0) 32%),
-    radial-gradient(circle at 65% 68%, rgba(8, 33, 78, 0.95) 0%, rgba(8, 33, 78, 0) 42%),
-    radial-gradient(circle at 50% 55%, #1ecad5 0%, #0b6d7d 55%, #082c52 100%);
+    /* top-left bright sun highlight */
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 28%),
+    /* upper-right wispy cloud */
+    radial-gradient(ellipse 55% 40% at 72% 32%, rgba(232, 240, 252, 0.85) 0%, rgba(232, 240, 252, 0) 60%),
+    /* mid-left wispy cloud */
+    radial-gradient(ellipse 45% 30% at 22% 58%, rgba(245, 250, 255, 0.7) 0%, rgba(245, 250, 255, 0) 60%),
+    /* lower right deeper blue */
+    radial-gradient(ellipse 60% 50% at 70% 80%, rgba(60, 110, 200, 0.55) 0%, rgba(60, 110, 200, 0) 60%),
+    /* subtle violet tint at bottom-left for depth */
+    radial-gradient(ellipse 50% 45% at 28% 80%, rgba(135, 130, 220, 0.35) 0%, rgba(135, 130, 220, 0) 60%),
+    /* base sphere */
+    radial-gradient(circle at 45% 45%, #d6e7f7 0%, #a8caec 30%, #6e9fd9 60%, #3e76c4 100%);
   box-shadow:
-    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
-    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
-    0 22px 40px -10px rgba(8, 33, 78, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.5);
-  animation: zoie-orb-spin 14s ease-in-out infinite alternate;
+    /* inner shadow bottom-right for sphere depth */
+    inset -14px -18px 36px rgba(30, 70, 150, 0.42),
+    /* inner highlight top-left */
+    inset 16px 18px 32px rgba(255, 255, 255, 0.55),
+    /* outer drop shadow */
+    0 18px 36px -10px rgba(90, 130, 200, 0.45),
+    /* thin white rim */
+    0 0 0 1px rgba(255, 255, 255, 0.65);
+  animation: zoe-orb-breathe 9s ease-in-out infinite;
 }
-.zoie-orb::before {
+
+/* second cloud layer rotates slowly for a "living" feel */
+.zoe-orb::before {
   content: "";
   position: absolute;
-  inset: -28px;
+  inset: 6%;
   border-radius: 9999px;
-  border: 1px solid rgba(190, 210, 235, 0.55);
-  box-shadow:
-    0 0 0 14px rgba(255, 255, 255, 0.55),
-    0 0 0 28px rgba(220, 215, 245, 0.35);
+  background:
+    radial-gradient(ellipse 40% 30% at 70% 35%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 65%),
+    radial-gradient(ellipse 35% 25% at 25% 75%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 65%),
+    radial-gradient(ellipse 30% 22% at 80% 70%, rgba(180, 200, 240, 0.4) 0%, rgba(180, 200, 240, 0) 65%);
+  mix-blend-mode: screen;
   pointer-events: none;
+  animation: zoe-orb-swirl 18s linear infinite;
 }
-.zoie-orb::after {
+
+/* close-in soft glow ring */
+.zoe-orb::after {
   content: "";
   position: absolute;
-  inset: -64px;
+  inset: -10px;
   border-radius: 9999px;
-  border: 1px solid rgba(210, 200, 240, 0.4);
-  background: radial-gradient(circle at 50% 50%, rgba(225, 218, 248, 0.25) 0%, rgba(225, 218, 248, 0) 65%);
+  background: radial-gradient(
+    circle,
+    rgba(170, 200, 240, 0.45) 0%,
+    rgba(170, 200, 240, 0) 70%
+  );
+  filter: blur(8px);
   pointer-events: none;
-}
-.zoie-orb-halo {
-  position: absolute;
-  inset: -84px;
-  border-radius: 9999px;
-  background: radial-gradient(circle at 50% 52%, rgba(210, 200, 240, 0.45) 0%, rgba(210, 200, 240, 0) 70%);
-  filter: blur(4px);
   z-index: -1;
 }
-.zoie-orb--listening {
-  animation: zoie-orb-pulse 1.6s ease-in-out infinite;
+
+/* wide ambient halo behind the orb */
+.zoe-orb-halo {
+  position: absolute;
+  inset: -36px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 50% 52%,
+    rgba(200, 220, 245, 0.5) 0%,
+    rgba(220, 215, 248, 0.25) 35%,
+    rgba(220, 215, 248, 0) 70%
+  );
+  filter: blur(12px);
+  z-index: -1;
+  pointer-events: none;
 }
-@keyframes zoie-orb-spin {
-  0%   { transform: rotate(-3deg) scale(1); }
-  100% { transform: rotate(3deg) scale(1.02); }
+
+/* active listening state — gentle pulse */
+.zoe-orb--listening {
+  animation: zoe-orb-breathe 4.5s ease-in-out infinite,
+    zoe-orb-pulse 1.8s ease-in-out infinite;
 }
-@keyframes zoie-orb-pulse {
-  0%, 100% { transform: scale(1); box-shadow:
-    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
-    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
-    0 22px 40px -10px rgba(8, 33, 78, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.5),
-    0 0 0 0 rgba(30, 202, 213, 0.25);
+
+@keyframes zoe-orb-breathe {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50%      { transform: scale(1.025) translateY(-1px); }
+}
+
+@keyframes zoe-orb-swirl {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes zoe-orb-pulse {
+  0%, 100% {
+    box-shadow:
+      inset -14px -18px 36px rgba(30, 70, 150, 0.42),
+      inset 16px 18px 32px rgba(255, 255, 255, 0.55),
+      0 18px 36px -10px rgba(90, 130, 200, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.65),
+      0 0 0 0 rgba(120, 165, 230, 0.5);
   }
-  50% { transform: scale(1.04); box-shadow:
-    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
-    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
-    0 22px 40px -10px rgba(8, 33, 78, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.5),
-    0 0 0 28px rgba(30, 202, 213, 0);
+  50% {
+    box-shadow:
+      inset -14px -18px 36px rgba(30, 70, 150, 0.42),
+      inset 16px 18px 32px rgba(255, 255, 255, 0.55),
+      0 18px 36px -10px rgba(90, 130, 200, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.65),
+      0 0 0 22px rgba(120, 165, 230, 0);
   }
 }
 
 /* Top page progress strip in screenshots */
-.zoie-topbar-strip {
+.zoe-topbar-strip {
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
@@ -229,6 +273,37 @@
 }
 
 /* Make scrollbars subtle */
-.zoie-scroll::-webkit-scrollbar { width: 8px; }
-.zoie-scroll::-webkit-scrollbar-thumb { background: rgba(60,60,75,0.18); border-radius: 999px; }
-.zoie-scroll::-webkit-scrollbar-track { background: transparent; }
+.zoe-scroll::-webkit-scrollbar { width: 8px; }
+.zoe-scroll::-webkit-scrollbar-thumb { background: rgba(60,60,75,0.18); border-radius: 999px; }
+.zoe-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Zoe × Assistant UI: brand accents on default aui proportions */
+.zoe-talk .aui-thread-welcome-suggestion {
+  border-color: oklch(0.91 0.004 286);
+  background: oklch(1 0 0);
+}
+.zoe-talk .aui-thread-welcome-suggestion:hover {
+  background: var(--zoe-lilac-soft);
+  border-color: oklch(0.85 0.04 285);
+}
+.zoe-talk [data-slot="aui_user-message-content"] {
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgba(20, 20, 40, 0.04),
+    0 0 0 1px oklch(0.18 0.01 280 / 0.05);
+}
+.zoe-talk [data-slot="aui_assistant-message-content"] {
+  border-inline-start: 3px solid var(--zoe-lilac);
+  padding-inline-start: 0.875rem;
+}
+.zoe-talk [data-slot="aui_composer-shell"]:focus-within {
+  border-color: oklch(0.65 0.13 285 / 0.45);
+  box-shadow: 0 0 0 3px oklch(0.93 0.04 285 / 0.5);
+}
+.zoe-talk .aui-composer-send {
+  background: oklch(0.16 0.01 280);
+  color: oklch(0.985 0 0);
+}
+.zoe-talk .aui-composer-send:hover {
+  background: oklch(0.22 0.01 280);
+}

@@ -1,13 +1,4 @@
-export type ZoieView = "talk" | "insights" | "timeline" | "settings";
-
-export type ChatRole = "user" | "assistant";
-
-export interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-  timestamp: number;
-}
+export type ZoeView = "talk" | "insights" | "timeline" | "settings";
 
 export type ResponseTone = "Empathetic" | "Direct" | "Clinical";
 

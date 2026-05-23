@@ -17,7 +17,7 @@ function getLastUserText(
   return "";
 }
 
-export function createZoieChatAdapter(
+export function createZoeChatAdapter(
   tone: SettingsState["voice"]["tone"],
 ): ChatModelAdapter {
   return {

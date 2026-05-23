@@ -14,9 +14,9 @@ export function Orb({ size = 220, listening = false, className }: OrbProps) {
       className={cn("relative inline-block", className)}
       style={{ width: size, height: size }}
     >
-      <span className="zoie-orb-halo" />
+      <span className="zoe-orb-halo" />
       <div
-        className={cn("zoie-orb", listening && "zoie-orb--listening")}
+        className={cn("zoe-orb", listening && "zoe-orb--listening")}
         style={{ width: size, height: size }}
       />
     </div>

@@ -2,15 +2,15 @@
 
 import { MessageSquare, LineChart, History, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ZoieView } from "./types";
+import type { ZoeView } from "./types";
 
 interface SidebarProps {
-  active: ZoieView;
-  onChange: (view: ZoieView) => void;
+  active: ZoeView;
+  onChange: (view: ZoeView) => void;
 }
 
 interface NavItem {
-  id: ZoieView;
+  id: ZoeView;
   label: string;
   icon: typeof MessageSquare;
 }
@@ -30,11 +30,11 @@ export function Sidebar({ active, onChange }: SidebarProps) {
           className="flex items-center gap-3 w-full text-left outline-none"
           onClick={() => onChange("talk")}
         >
-          <div className="w-10 h-10 rounded-full bg-[color:var(--zoie-lilac-soft)] flex items-center justify-center font-semibold text-foreground ring-1 ring-foreground/10">
+          <div className="w-10 h-10 rounded-full bg-[color:var(--zoe-lilac-soft)] flex items-center justify-center font-semibold text-foreground ring-1 ring-foreground/10">
             Z
           </div>
           <div className="leading-tight">
-            <p className="font-semibold text-[15px] tracking-tight">Zoie</p>
+            <p className="font-semibold text-[15px] tracking-tight">Zoe</p>
             <p className="text-[11px] text-muted-foreground">Health Companion</p>
           </div>
         </button>
