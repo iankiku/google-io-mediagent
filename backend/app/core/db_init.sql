@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS user_medical_records (
 );
 
 -- 3. User Record Embeddings Table
--- Dimension is 768 for gemini text-embedding-004
+-- Dimension is 768 for gemini-embedding-001
 CREATE TABLE IF NOT EXISTS user_record_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id UUID REFERENCES user_medical_records(id) ON DELETE CASCADE NOT NULL,

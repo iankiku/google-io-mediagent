@@ -115,4 +115,11 @@ You forgot to create the `.env` file in the **root** directory, or you didn't pa
 You must set `PYTHONPATH=backend` when running tests or scripts from the root directory.
 
 ### `Error: Command ... ensurepip ... returned non-zero exit status 1`
-This happens on some macOS versions with Python 3.14. Try using `python3.12 -m venv venv` instead.
+This happens on some macOS versions with Python 3.14 (the current `python3` on your machine). I have updated the `Makefile` to automatically prefer **Python 3.12** if it is installed. 
+
+If it still fails, manually create the venv using a stable version:
+```bash
+cd backend
+python3.12 -m venv venv
+venv/bin/pip install -r requirements.txt
+```

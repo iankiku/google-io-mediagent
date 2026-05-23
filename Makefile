@@ -4,6 +4,9 @@
 # `make infra-sync-env` pushes .env values into Pulumi ESC.
 # `make docker-up` and `make dev` both read from .env automatically.
 
+# Use Python 3.12 if available, otherwise fallback to python3
+PYTHON := $(shell command -v python3.12 2> /dev/null || command -v python3)
+
 # Load .env if it exists
 ifneq (,$(wildcard .env))
     include .env
@@ -177,7 +180,7 @@ install: setup-backend setup-frontend
 	@echo "All dependencies installed successfully."
 
 setup-backend:
-	cd backend && python3 -m venv venv && venv/bin/pip install -r requirements.txt
+	cd backend && $(PYTHON) -m venv venv && venv/bin/pip install -r requirements.txt
 
 setup-frontend:
 	cd frontend && npm install
