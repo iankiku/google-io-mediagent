@@ -506,9 +506,7 @@ function ChatDrawer({
 function ChatEmptyState() {
   return (
     <div className="my-auto flex flex-col items-center gap-3 px-4 py-8 text-center">
-      <span className="w-9 h-9 rounded-full bg-[color:var(--zoe-lilac-soft)] flex items-center justify-center">
-        <MessageSquare className="w-4 h-4 text-[color:var(--zoe-lilac)]" />
-      </span>
+      <ZoeLogo size={56} />
       <p className="text-sm font-medium">Ask Zoe anything</p>
       <p className="text-xs text-muted-foreground max-w-[260px]">
         Try sleep quality, HRV trends, or workout suggestions. Zoe will reply

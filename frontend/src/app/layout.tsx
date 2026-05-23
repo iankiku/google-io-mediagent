@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   title: "Zoe — Health Companion",
   description:
     "Zoe is your AI health companion. Talk to it, review your insights, and explore your medical timeline.",
+  icons: {
+    icon: [
+      { url: "/zoe-logo.png", type: "image/png" },
+    ],
+    shortcut: "/zoe-logo.png",
+    apple: "/zoe-logo.png",
+  },
 };
 
 export default function RootLayout({
