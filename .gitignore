@@ -32,3 +32,6 @@ opencode.json
 skills-lock.json
 mcp.json
 .agents/
+
+# Seed datasets (medical reference corpora — too large for git)
+backend/data/
