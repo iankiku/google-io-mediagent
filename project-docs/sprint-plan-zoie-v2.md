@@ -21,9 +21,9 @@ v2 full scope = ~15.5 person-days. **3 hours = ~6 person-hours with two engineer
 7. ✂ `grounding/` LOINC/RxNorm/ICD-10 reference tables → inline a 10-row Python dict for the 2 demo lab codes + 1 demo medication; full tables become v1.1
 8. ✂ `visit_sessions` + `visit_turns` schema → write the interpreter session as a normal `user_medical_records` row with `file_type='visit_transcript'`; full schema later
 9. ✂ Real-time streaming WebSocket → push-to-talk submits discrete audio blobs to a POST endpoint; no streaming required
-10. ✂ HyDE loop 5 → **2 iterations**. Architecture stays; loop count is a one-line constant. Still strictly better than v1's literal-query single-shot retrieval.
-11. ✂ Real MEDGemma reranker → `FlashReranker` shim behind the `MedicalReranker` interface (Gemini 2.5 Flash with a medical-reranker prompt). Drop-in swap when Vertex MEDGemma ships post-hackathon.
-12. ✂ Image-embedding ingestion (`embed_image`) — out for 3hr; images continue through existing extraction-only path.
+10. ✂ HyDE iteration loop entirely. v1 ships `k_iterations=1` (literal-query path through the same `retrieve()` interface). Architecture and pitch hold; the 2-iter+ variant lands in v1.1 with a tuned diversity prompt and eval harness.
+11. ✂ Real MEDGemma reranker → `FlashReranker` shim behind the `MedicalReranker` interface (Gemini 2.5 Flash with a medical-reranker prompt). Drop-in swap via `get_reranker()` factory + `RERANKER` env var when Vertex MEDGemma ships post-hackathon.
+12. ✂ Image-embedding ingestion (`embed_image` + separate `user_image_embeddings` table) — out for 3hr; images continue through existing extraction-only path. Cross-modal retrieval (text query → image hit) requires a unified multimodal embedding model and is v1.2.
 13. ✂ Telegram voice-note inbound — `force_trigger` and demo check-ins use text. Voice-note ingestion is v1.1.
 
 Anything that survives those cuts is in scope below. Anything not below is **explicitly out** for the 3 hours.
@@ -90,9 +90,9 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 2.1 | Create `backend/app/domains/interpreter/` with `router.py`, `services.py`, `schemas.py` | 5 min | Backend |
+| 2.1 | Create `backend/app/domains/interpreter/` with `router.py`, `services.py`, `schemas.py`. In `schemas.py`, define `PatientExtracted` + `DoctorExtracted` Pydantic models (canonical EXTRACTED shape per PRD). Surface their JSON schema to the prompts via `Model.model_json_schema()` — no hard-coded field names in prompt strings | 10 min | Backend |
 | 2.2 | Implement `POST /api/interpreter/turn` accepting `multipart/form-data` (audio blob + `role` field `'patient'` or `'doctor'`) | 10 min | Backend |
-| 2.3 | In `services.py`, define two prompt constants `PROMPT_PATIENT_TO_CLINICAL` and `PROMPT_DOCTOR_TO_SIMPLIFIED` (copy verbatim from PRD §Implementation Decisions / interpreter) | 5 min | Backend |
+| 2.3 | In `services.py`, define two prompt constants `PROMPT_PATIENT_TO_CLINICAL` and `PROMPT_DOCTOR_TO_SIMPLIFIED` (copy verbatim from PRD §Implementation Decisions / interpreter); inject the EXTRACTED schema description from the Pydantic models defined in 2.1 | 5 min | Backend |
 | 2.4 | Call `client.models.generate_content` with `model="gemini-2.5-flash"`, audio Part from bytes, the role-appropriate prompt, `response_mime_type="application/json"`, request schema `{ cleaned: str, extracted: dict }` | 15 min | Backend |
 | 2.5 | Return `{ raw_transcript, cleaned, extracted, role, turn_index }` — raw_transcript can be Gemini's own STT output if available, else echo input filename | 5 min | Backend |
 | 2.6 | Wire `interpreter` router into `app/main.py` | 2 min | Backend |
@@ -115,26 +115,28 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 3.0 | Create `backend/app/domains/retrieval/` with `services.py`, `schemas.py`. Define `MedicalReranker` ABC + `FlashReranker` impl + `MedGemmaReranker` stub (raises `NotImplementedError` with v1.1 Vertex deployment note) | 8 min | BE1 |
-| 3.0b | Implement `retrieve(user_id, query, k_iterations=2, top_k=2)`: HyDE loop — each iteration calls Gemini 2.5 Flash to generate a hypothetical answer (conditioned on accumulated `contexts[]`), embed it, search pgvector (user records + general KB), dedup append. Reuse existing embedding + pgvector helpers from `agent_registry` | 12 min | BE1 |
+| 3.0 | Create `backend/app/domains/retrieval/` with `services.py`, `schemas.py`. Define `MedicalReranker` ABC + `FlashReranker` impl + `MedGemmaReranker` stub (raises `NotImplementedError` with v1.1 Vertex note) + `get_reranker()` factory reading `RERANKER` env var (default `flash`) | 8 min | BE1 |
+| 3.0b | Implement `retrieve(user_id, query, k_iterations=1, top_k=2)`: literal-query path — embed query → pgvector dual-search (user records + general KB in parallel via `asyncio.gather`) → dedup → return contexts. HyDE loop scaffolding present (conditional on `k_iterations>1`) but defaults to 1 for v1 | 5 min | BE1 |
 | 3.0c | Implement `FlashReranker.rerank(query, contexts)` — one Gemini 2.5 Flash call with a medical reranker prompt + JSON schema `[{record_id, score, reason}]`, return top 2 sorted by score | 8 min | BE1 |
-| 3.0d | Modify `execution_node` in `orchestration/graph.py`: replace direct pgvector call with `retrieval.retrieve(user_id, query)`. Swap synthesis model to `gemini-2.5-pro` for the final grounded answer. Top-2 contexts feed the existing `[Grounded Medical Context]` block | 7 min | BE1 |
+| 3.0d | Modify `execution_node` in `orchestration/graph.py`: replace direct pgvector call with `retrieval.retrieve(user_id, query)`. Cap validator retries to 1: first attempt uses `gemini-2.5-pro`, retry path falls back to `gemini-2.5-flash` with a stricter "you must cite" instruction. Top-2 contexts feed the existing `[Grounded Medical Context]` block | 8 min | BE1 |
+| 3.0e | **Re-smoke** Block 1.4 chat against Pro-backed `execution_node` — POST a dummy query, verify response shape + latency budget (<5s). Catches model auth / format regressions before Block 4 | 3 min | BE1 |
+| 3.0f | **Retrieval fixture tests** (`backend/tests/test_retrieval.py`): (a) `FlashReranker.rerank()` returns top-2 when Flash output is valid JSON, gracefully falls back to vector-similarity when JSON is malformed, (b) `retrieve()` returns empty `final_top_k` (not raise) when pgvector returns 0 hits, (c) dedup across the dual-search collapses identical record_ids. Mock the Gemini client | 8 min | BE1 |
 | 3.1 | Add `INVARIANT_SYSTEM_INSTRUCTION` constant to `orchestration/graph.py` — no-uncited-medical-synthesis rule + boundary line, verbatim from PRD. Append to `execution_node` system instruction before the context block | 3 min | BE1 |
-| 3.2 | In `validator_node`, regex check: medical keywords (`mg/dL`, `cholesterol`, `glucose`, `BP`, `HbA1c`) AND no citation token (`LOINC:`, `RxNorm:`, `MedlinePlus:`, `[doc:`, `ICD-10:`) → `validation_passed=false`, feedback "missing citation" | 7 min | BE1 |
+| 3.2 | In `validator_node`, value-pattern regex check: `\b\d+(\.\d+)?\s*(mg\/dL\|mmol\/L\|mmHg\|bpm\|%)\b` matched in response AND no citation token (`LOINC:`, `RxNorm:`, `MedlinePlus:`, `[doc:`, `ICD-10:`) → `validation_passed=false`, feedback "missing citation." Quantitative-only trigger avoids false positives on bare keyword mentions | 5 min | BE1 |
 | 3.4 | Create `backend/app/domains/grounding/inline.py` — Python dict for LDL, total cholesterol, fasting glucose, HbA1c, systolic BP, diastolic BP (LOINC + unit + ref range) + lisinopril (RxNorm + class + side effects) | 8 min | BE2 |
 | 3.5 | In `ingestion/services.py` `process_medical_file_with_medgemma`: after Gemini returns `ClinicalSummary`, look up each `lab_metric.metric` and each `medication` against `grounding.inline`, append matched LOINC/RxNorm into the chunk text that gets embedded so citation tokens surface in retrieved context | 10 min | BE2 |
 | 3.6 | Frontend: `components/ui/CitationChip.tsx` — small badge (e.g. `LOINC:13457-7`) that opens a `Dialog` with inline metadata on click. In `MessageBubble.tsx`, regex-detect citation tokens in agent responses and render as `<CitationChip />` | 15 min | FE |
-| 3.7 | Smoke test: ask "what does my LDL value mean?" against Ravi's seed (post-Block 4 — defer if needed) → confirm a relevant context is retrieved by HyDE, reranked to top 2, and cited in the Pro-synthesized answer | 5 min | BE1 |
+| 3.7 | End-to-end smoke (post-Block 4): ask "what does my LDL value mean?" against Ravi's seed → confirm retrieve→rerank→Pro path returns cited answer with clickable chip | 5 min | BE1 |
 
-**BE1 critical path:** 3.0 → 3.0b → 3.0c → 3.0d → 3.1 → 3.2 → 3.7 ≈ 50 min sequential. BE2 (3.4 + 3.5 = 18 min) and FE (3.6 = 15 min) run fully in parallel.
+**BE1 critical path:** 3.0 → 3.0b → 3.0c → 3.0d → 3.0e → 3.0f → 3.1 → 3.2 → 3.7 ≈ 53 min sequential. BE2 (3.4 + 3.5 = 18 min) and FE (3.6 = 15 min) run fully in parallel.
 
-**Checkpoint:** Ask the chat "what does my LDL value mean?" → HyDE generates a hypothetical, retrieves Ravi's lab + an inline-grounding chunk, reranker returns top 2, Pro synthesizes with `LOINC:13457-7` and `[doc:...]` clickable chips, plus the boundary line *"I'm not a doctor..."* visible.
+**Checkpoint:** Ask the chat "what does my LDL value mean?" → retrieval returns Ravi's lab + an inline-grounding chunk, FlashReranker picks top 2, Pro synthesizes the answer with `LOINC:13457-7` and `[doc:...]` clickable chips, boundary line *"I'm not a doctor..."* visible. Re-smoke (3.0e) confirms baseline before Block 4. Three retrieval fixture tests (3.0f) green.
 
 **Failure escape hatches:**
-- HyDE loop slow or noisy → drop to 1 iteration (one-line constant). Pipeline interface unchanged.
-- `FlashReranker` produces nonsense → fall back to deterministic vector-similarity ranking (no LLM rerank). Comment that MEDGemma replaces this in v1.1.
-- Pro synthesis adds too much latency → swap back to Flash for synthesis. Quality drop is real but structure still demonstrates.
-- Validator regex causes loops → `needs_validation=False`, rely on prompt-layer invariant only.
+- `FlashReranker` produces nonsense → 3.0f covers this with a graceful fallback to vector-similarity ranking. No code change needed at demo time.
+- Pro synthesis adds too much latency → swap to Flash on first attempt too (one constant change in 3.0d). Quality drop is real but structure still demonstrates.
+- Validator regex causes loops → cap is already 1 (per 3.0d); set `needs_validation=False` if even one retry is too noisy.
+- Pgvector dual-search slow → drop general-KB search; user-records-only is the demo's critical path.
 
 ---
 
@@ -162,9 +164,10 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 
 | # | Task | Time | Owner |
 |---|------|------|-------|
-| 5.1 | Full rehearsal #1: Act 1 (Telegram check-in + force_trigger + lab drop) → Act 2 (interpreter, 3 patient turns + 2 doctor turns) → Act 3 (dashboard symptom trend + lab citation chips + HyDE-grounded answer) | 5 min | All |
-| 5.2 | Fix the worst breakage from rehearsal #1 | 4 min | All |
-| 5.3 | Rehearsal #2 + final polish | 3 min | All |
+| 5.0 | If demo'ing from Cloud Run: set `min-instances=1` on the backend service (Pulumi config or `gcloud run services update`). Prevents Pro cold-start on first Act-3 chat. Revert after demo. | 2 min | One |
+| 5.1 | Full rehearsal #1: Act 1 (Telegram check-in + force_trigger + lab drop) → Act 2 (interpreter, 3 patient turns + 2 doctor turns) → Act 3 (dashboard symptom trend + lab citation chips + Pro-grounded answer) | 5 min | All |
+| 5.2 | Fix the worst breakage from rehearsal #1 | 3 min | All |
+| 5.3 | Rehearsal #2 + final polish | 2 min | All |
 | 5.4 | Git commit + push, submit on hackathon platform | 3 min | One |
 
 **Checkpoint:** Submitted with a working demo path. If Block 5 reveals a fatal breakage, fall back to the v1 demo path — it still works because Block 1 verified it.
@@ -181,10 +184,10 @@ Anything that survives those cuts is in scope below. Anything not below is **exp
 | Interpreter page totally fails on stage | The Act 2 hero is gone, but Acts 1 + 3 still demo via the existing chat + Telegram flows |
 | Telegram voice-note ingestion breaks | Demo uses text check-ins by design — voice-note ingestion is v1.1 (per cut #13) |
 | Validator citation check causes infinite loops | `needs_validation=False` for the demo; rely on prompt-layer invariant only |
-| **HyDE loop too slow (Flash × 2 + embed + search ≈ 3–4s before rerank)** | Loop count is a constant — drop 2 → 1, or skip HyDE entirely and use literal-query retrieval. Pipeline interface unchanged. |
-| **Gemini 2.5 Pro synthesis adds latency on every chat turn** | Per-turn budget acceptable for Act 3 single answer; if it bites, swap synthesis back to Flash. Quality drop is real but structure still demonstrates. |
-| **`FlashReranker` produces noisy top-2** | Fall back to deterministic vector-similarity ranking (no LLM rerank). Comment that MEDGemma replaces this in v1.1. |
-| MEDGemma references in pitch don't match reality | MEDGemma is spec'd as the reranker behind the `MedicalReranker` interface; the `FlashReranker` shim is honest on stage — "Gemini Flash today, Vertex MEDGemma in v1.1 behind the same interface." |
+| **End-to-end chat latency on Pro path (~3–5s happy path with literal retrieval)** | Pre-warm via Block 5.0 (`min-instances=1`). If still bites, swap synthesis to Flash on first attempt — one constant change in `execution_node`. |
+| **Pro cold-start on Cloud Run (first call after idle scale-down ~3s)** | Block 5.0 sets `min-instances=1` for demo window. Or pre-warm in Block 5.1 with a dummy chat 30s before stage. |
+| **`FlashReranker` returns invalid JSON or noisy top-2** | Task 3.0f covers the JSON-failure path with a graceful fallback to vector-similarity ranking. No demo-time action needed. |
+| MEDGemma references in pitch don't match reality | MEDGemma is spec'd as the reranker behind the `MedicalReranker` interface; the `FlashReranker` shim is honest on stage — "Gemini Flash today, Vertex MEDGemma in v1.1 behind the same interface, swap via `RERANKER` env var." |
 | Cloud Run deploy fails | Demo locally via `docker compose up` — still shows production-ready architecture |
 | Frontend demo data sufficient | Block 4.1 seeds Ravi explicitly; v1's hardcoded Maria demo data is the secondary fallback |
 | GCS not configured | Storage falls back to local filesystem automatically (inherited from v1) |
