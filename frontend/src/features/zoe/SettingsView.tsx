@@ -40,8 +40,8 @@ export function SettingsView({ state, onChange, onImportData }: SettingsViewProp
   };
 
   return (
-    <div className="relative h-full overflow-y-auto zoie-scroll">
-      <span className="zoie-topbar-strip" />
+    <div className="relative h-full overflow-y-auto zoe-scroll">
+      <span className="zoe-topbar-strip" />
       <div className="px-8 lg:px-12 py-8 mx-auto max-w-[1100px]">
         <header className="flex items-start justify-between gap-6 mb-8">
           <h1 className="text-3xl md:text-[34px] font-semibold tracking-tight">Settings</h1>
@@ -59,7 +59,7 @@ export function SettingsView({ state, onChange, onImportData }: SettingsViewProp
           {/* Profile */}
           <SettingsCard
             icon={<User className="w-5 h-5" />}
-            iconClass="bg-[color:var(--zoie-lilac-soft)] text-[color:var(--zoie-lilac)]"
+            iconClass="bg-[color:var(--zoe-lilac-soft)] text-[color:var(--zoe-lilac)]"
             title="Profile"
             subtitle="Personal and emergency details"
           >
@@ -119,7 +119,7 @@ export function SettingsView({ state, onChange, onImportData }: SettingsViewProp
                   className={cn(
                     "h-7 px-3 rounded-full text-xs font-semibold transition-colors",
                     state.connections.myChartConnected
-                      ? "bg-[color:var(--zoie-mint-soft)] text-[color:var(--zoie-mint)]"
+                      ? "bg-[color:var(--zoe-mint-soft)] text-[color:var(--zoe-mint)]"
                       : "bg-card ring-1 ring-foreground/15 text-foreground hover:bg-muted"
                   )}
                 >
@@ -134,7 +134,7 @@ export function SettingsView({ state, onChange, onImportData }: SettingsViewProp
             icon={<Shield className="w-5 h-5" />}
             iconClass="bg-foreground/5 text-foreground"
             title="Privacy & Data"
-            subtitle="How Zoie learns from you"
+            subtitle="How Zoe learns from you"
           >
             <div className="space-y-2 mt-2">
               <PrivacyRow
@@ -159,9 +159,9 @@ export function SettingsView({ state, onChange, onImportData }: SettingsViewProp
           {/* Voice Assistant */}
           <SettingsCard
             icon={<Activity className="w-5 h-5" />}
-            iconClass="bg-[color:var(--zoie-coral-soft)] text-[color:var(--zoie-coral)]"
+            iconClass="bg-[color:var(--zoe-coral-soft)] text-[color:var(--zoe-coral)]"
             title="Voice Assistant"
-            subtitle="Zoie's tone and delivery"
+            subtitle="Zoe's tone and delivery"
           >
             <div className="space-y-4 mt-2">
               <div>

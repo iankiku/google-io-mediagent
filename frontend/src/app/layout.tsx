@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zoie — Health Companion",
+  title: "Zoe — Health Companion",
   description:
-    "Zoie is your AI health companion. Talk to it, review your insights, and explore your medical timeline.",
+    "Zoe is your AI health companion. Talk to it, review your insights, and explore your medical timeline.",
 };
 
 export default function RootLayout({
