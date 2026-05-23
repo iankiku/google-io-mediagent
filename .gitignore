@@ -12,8 +12,23 @@ frontend/.next/
 frontend/out/
 frontend/build/
 
+# Environment & Secrets
+.env
+*.env.local
+
+# Uploads (local dev)
+workspace_uploads/
+
+# Pulumi
+infra/node_modules/
+infra/.pulumi/
+
 # IDE / OS
 .DS_Store
 .vscode/
 .idea/
 .antigravitycli/
+opencode.json
+skills-lock.json
+mcp.json
+.agents/

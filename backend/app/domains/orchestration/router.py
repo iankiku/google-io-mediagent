@@ -13,6 +13,7 @@ class SkillConfig(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User query or instruction")
     agent_id: Optional[str] = Field(None, description="Specific persistent Agent ID to target")
+    user_id: Optional[str] = Field(None, description="Contextual User UUID for private medical data lookups")
     needs_validation: bool = Field(False, description="Enable verification/validator node in LangGraph")
     chat_history: Optional[List[dict]] = Field(default_factory=list, description="List of previous messages: [{'role': 'user'|'model', 'content': str}]")
     custom_agents_md: Optional[str] = Field(None, description="Inline AGENTS.md content to overlay")
@@ -41,7 +42,8 @@ async def chat(request: ChatRequest):
             "validation_status": "pending",
             "logs": [f"[Graph] Starting execution graph targeting agent '{request.agent_id or DEFAULT_BASE_AGENT}'."],
             "custom_agents_md": request.custom_agents_md,
-            "custom_skills": [s.model_dump() for s in request.custom_skills] if request.custom_skills else []
+            "custom_skills": [s.model_dump() for s in request.custom_skills] if request.custom_skills else [],
+            "user_id": request.user_id
         }
         
         # Execute the LangGraph
