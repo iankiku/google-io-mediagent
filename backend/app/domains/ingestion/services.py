@@ -92,7 +92,6 @@ def process_medical_file_with_medgemma(
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 system_instruction=system_prompt,
-                response_schema=ClinicalSummary
             )
         )
         

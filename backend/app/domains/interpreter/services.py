@@ -2,9 +2,19 @@ import json
 from google.genai import types
 from app.core.config import client
 
-PROMPT_PATIENT_TO_CLINICAL = """You are a medical scribe. Normalize this Indian English patient utterance into concise American clinical English. Preserve every value, timeframe, and qualifier. Add nothing not said. Output two fields: `clinical` (one to three sentences) and `extracted` (a JSON object with detected `symptom`, `onset`, `severity`, `associated`, `medications_mentioned`)."""
+PROMPT_PATIENT_TO_CLINICAL = """You are a medical scribe. The patient is speaking (may be in Hindi, Mandarin, Indian English, or American English). Normalize their utterance into concise American clinical English. Preserve every value, timeframe, and qualifier. Add nothing not said.
 
-PROMPT_DOCTOR_TO_SIMPLIFIED = """You are explaining the doctor's words to a Hindi-English-speaking patient at a 6th-grade reading level using familiar register. Use Indian English idioms where natural. Add nothing the doctor did not say. Output: `simplified` (one to three sentences) and `extracted` (JSON with `plan_items`, `medications_prescribed`, `tests_ordered`, `followup`)."""
+Return a JSON object with exactly these fields:
+- `raw`: the verbatim transcript in the speaker's source language (Han characters, Devanagari, etc., kept as-is — no translation in this field)
+- `clinical`: one to three sentences of American clinical English
+- `extracted`: object with `symptom`, `onset`, `severity`, `associated`, `medications_mentioned`"""
+
+PROMPT_DOCTOR_TO_SIMPLIFIED = """You are explaining the doctor's words to a Hindi/Mandarin/Indian-English-speaking patient at a 6th-grade reading level using familiar register. Use the patient's likely register where natural. Add nothing the doctor did not say.
+
+Return a JSON object with exactly these fields:
+- `raw`: the verbatim English transcript of what the doctor said
+- `simplified`: one to three sentences explaining it for the patient
+- `extracted`: object with `plan_items`, `medications_prescribed`, `tests_ordered`, `followup`"""
 
 
 def process_turn(
@@ -22,10 +32,10 @@ def process_turn(
         parts.append(
             types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
         )
-        raw_transcript = "audio input"
+        fallback_raw = ""
     elif text:
         parts.append(types.Part.from_text(text=text))
-        raw_transcript = text
+        fallback_raw = text
     else:
         raise ValueError("Either audio_bytes or text must be provided")
 
@@ -41,6 +51,8 @@ def process_turn(
         result = json.loads(response.text)
     except (json.JSONDecodeError, TypeError):
         result = {"error": "Failed to parse Gemini response", "raw": response.text}
+
+    raw_transcript = result.get("raw", "") or fallback_raw
 
     if role == "patient":
         cleaned = result.get("clinical", "")

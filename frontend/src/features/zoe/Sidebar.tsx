@@ -2,6 +2,7 @@
 
 import { MessageSquare, LineChart, History, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ZoeLogo } from "./ZoeLogo";
 import type { ZoeView } from "./types";
 
 interface SidebarProps {
@@ -27,12 +28,10 @@ export function Sidebar({ active, onChange }: SidebarProps) {
       <div className="px-6 pt-6 pb-5">
         <button
           type="button"
-          className="flex items-center gap-3 w-full text-left outline-none"
+          className="flex items-center gap-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-xl"
           onClick={() => onChange("talk")}
         >
-          <div className="w-10 h-10 rounded-full bg-[color:var(--zoe-lilac-soft)] flex items-center justify-center font-semibold text-foreground ring-1 ring-foreground/10">
-            Z
-          </div>
+          <ZoeLogo size={44} priority />
           <div className="leading-tight">
             <p className="font-semibold text-[15px] tracking-tight">Zoe</p>
             <p className="text-[11px] text-muted-foreground">Health Companion</p>

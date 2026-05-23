@@ -6,6 +6,7 @@ import { TalkView } from "@/features/zoe/TalkView";
 import { InsightsView } from "@/features/zoe/InsightsView";
 import { MedicalTimelineView } from "@/features/zoe/MedicalTimelineView";
 import { SettingsView } from "@/features/zoe/SettingsView";
+import { AskZoePopup, type AskContext } from "@/features/zoe/AskZoePopup";
 import type { SettingsState, VitalsState, ZoeView } from "@/features/zoe/types";
 
 const INITIAL_SETTINGS: SettingsState = {
@@ -36,6 +37,14 @@ export default function Page() {
   const [settings, setSettings] = useState<SettingsState>(INITIAL_SETTINGS);
   const [vitals, setVitals] = useState<VitalsState>(INITIAL_VITALS);
 
+  const [askContext, setAskContext] = useState<AskContext | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
+
+  const askAbout = useCallback((ctx: AskContext) => {
+    setAskContext(ctx);
+    setAskOpen(true);
+  }, []);
+
   const handleImportData = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
@@ -62,10 +71,16 @@ export default function Page() {
               setVitals((v) => ({ ...v, irregularRhythm: !v.irregularRhythm }))
             }
             onImportData={handleImportData}
+            onAskAbout={askAbout}
           />
         );
       case "timeline":
-        return <MedicalTimelineView onImportData={handleImportData} />;
+        return (
+          <MedicalTimelineView
+            onImportData={handleImportData}
+            onAskAbout={askAbout}
+          />
+        );
       case "settings":
         return (
           <SettingsView
@@ -75,7 +90,10 @@ export default function Page() {
           />
         );
     }
-  }, [view, vitals, handleImportData, settings]);
+  }, [view, vitals, handleImportData, settings, askAbout]);
+
+  // FAB is hidden on Talk because Talk is itself the primary chat surface.
+  const showAsk = view !== "talk";
 
   return (
     <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden">
@@ -83,6 +101,19 @@ export default function Page() {
       <main className="flex-1 h-full overflow-hidden bg-background">
         {content}
       </main>
+
+      {showAsk && (
+        <AskZoePopup
+          tone={settings.voice.tone}
+          context={askContext}
+          open={askOpen}
+          onOpenChange={(o) => {
+            setAskOpen(o);
+            if (!o) setAskContext(null);
+          }}
+          onContextConsumed={() => setAskContext((c) => c)}
+        />
+      )}
     </div>
   );
 }

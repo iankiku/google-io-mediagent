@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -16,22 +17,44 @@ import {
   Watch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MetricDetailDrawer } from "./MetricDetailDrawer";
+import {
+  METRIC_DETAILS,
+  askPrompt,
+  type MetricDetail,
+  type MetricId,
+} from "./metric-detail";
+import type { AskContext } from "./AskZoePopup";
 
 interface InsightsViewProps {
   irregularRhythm: boolean;
   onToggleAlert: () => void;
   onImportData: () => void;
+  onAskAbout: (ctx: AskContext) => void;
 }
 
 export function InsightsView({
   irregularRhythm,
   onToggleAlert,
   onImportData,
+  onAskAbout,
 }: InsightsViewProps) {
   const title = irregularRhythm ? "Vitals & Alerts" : "Your Insights";
   const subtitle = irregularRhythm
     ? "Real-time telemetry and clinical insights from your connected devices."
     : "AI-extracted patterns from your recent health logs.";
+
+  const [activeMetric, setActiveMetric] = useState<MetricId | null>(null);
+  const open = (id: MetricId) => setActiveMetric(id);
+
+  const handleAsk = (metric: MetricDetail) => {
+    setActiveMetric(null);
+    onAskAbout({
+      label: metric.name,
+      prompt: askPrompt(metric),
+      surface: "insights",
+    });
+  };
 
   return (
     <div className="h-full overflow-y-auto zoe-scroll">
@@ -73,14 +96,14 @@ export function InsightsView({
 
         {/* Three primary vital cards (shared across both states) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-          <CardiovascularResilienceCard />
-          <AutonomicRecoveryCard />
-          <BasalVariationsCard />
+          <CardiovascularResilienceCard onOpen={() => open("hrv")} />
+          <AutonomicRecoveryCard onOpen={() => open("sleep")} />
+          <BasalVariationsCard onOpen={() => open("basal-temp")} />
         </div>
 
         {/* Heart Health */}
         <div className="mt-5">
-          <HeartHealthCard />
+          <HeartHealthCard onOpen={open} />
         </div>
 
         {/* Active Telemetry Sources */}
@@ -90,9 +113,15 @@ export function InsightsView({
 
         {/* Activity Stats */}
         <div className="mt-5">
-          <ActivityStatsCard />
+          <ActivityStatsCard onOpen={open} />
         </div>
       </div>
+
+      <MetricDetailDrawer
+        metric={activeMetric ? METRIC_DETAILS[activeMetric] : null}
+        onClose={() => setActiveMetric(null)}
+        onAskZoe={handleAsk}
+      />
     </div>
   );
 }
@@ -167,9 +196,9 @@ function AlertBanner() {
 
 /* ───────────────────── Three primary cards (shown in both states) ───────────────────── */
 
-function CardiovascularResilienceCard() {
+function CardiovascularResilienceCard({ onOpen }: { onOpen: () => void }) {
   return (
-    <ZoeCard>
+    <InteractiveCard onOpen={onOpen} label="Open cardiovascular resilience detail">
       <div className="flex items-center gap-3">
         <IconBadge className="bg-[color:var(--zoe-coral-soft)] text-[color:var(--zoe-coral)]">
           <Heart className="w-5 h-5" />
@@ -179,6 +208,7 @@ function CardiovascularResilienceCard() {
           <br />
           Resilience
         </h3>
+        <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
       </div>
       <p className="text-xs text-muted-foreground mt-4 mb-2">HRV Trend (7 days)</p>
       <Sparkline color="oklch(0.62 0.13 165)" />
@@ -186,13 +216,13 @@ function CardiovascularResilienceCard() {
         Your HRV is 64 ms, showing a slight recovery trend compared to early
         week baseline.
       </AiAnalysis>
-    </ZoeCard>
+    </InteractiveCard>
   );
 }
 
-function AutonomicRecoveryCard() {
+function AutonomicRecoveryCard({ onOpen }: { onOpen: () => void }) {
   return (
-    <ZoeCard>
+    <InteractiveCard onOpen={onOpen} label="Open autonomic recovery detail">
       <div className="flex items-center gap-3">
         <IconBadge className="bg-[color:var(--zoe-lilac-soft)] text-[color:var(--zoe-lilac)]">
           <Moon className="w-5 h-5" />
@@ -202,6 +232,7 @@ function AutonomicRecoveryCard() {
           <br />
           Recovery
         </h3>
+        <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
       </div>
       <div className="mt-4 space-y-3">
         <div>
@@ -229,18 +260,19 @@ function AutonomicRecoveryCard() {
         Respiratory rate stable during deep sleep phases, indicating good
         restorative load.
       </AiAnalysis>
-    </ZoeCard>
+    </InteractiveCard>
   );
 }
 
-function BasalVariationsCard() {
+function BasalVariationsCard({ onOpen }: { onOpen: () => void }) {
   return (
-    <ZoeCard>
+    <InteractiveCard onOpen={onOpen} label="Open basal variations detail">
       <div className="flex items-center gap-3">
         <IconBadge className="bg-[color:var(--zoe-amber-soft)] text-[color:var(--zoe-amber)]">
           <Thermometer className="w-5 h-5" />
         </IconBadge>
         <h3 className="text-base font-semibold leading-tight">Basal Variations</h3>
+        <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
       </div>
       <div className="mt-4 flex flex-col items-center">
         <p className="text-[40px] font-semibold leading-none tracking-tight">
@@ -263,13 +295,13 @@ function BasalVariationsCard() {
       <AiAnalysis>
         Skin temp dropped by 0.2°F from baseline overnight, normal fluctuation.
       </AiAnalysis>
-    </ZoeCard>
+    </InteractiveCard>
   );
 }
 
 /* ───────────────────── Heart Health (shared) ───────────────────── */
 
-function HeartHealthCard() {
+function HeartHealthCard({ onOpen }: { onOpen: (id: MetricId) => void }) {
   return (
     <ZoeCard>
       <div className="flex items-center justify-between">
@@ -296,6 +328,7 @@ function HeartHealthCard() {
               </span>
             </>
           }
+          onClick={() => onOpen("hrv")}
         />
         <SubMetricCard
           label="Resting Heart Rate"
@@ -305,13 +338,13 @@ function HeartHealthCard() {
               <span className="text-xs text-muted-foreground ml-1">bpm</span>
             </>
           }
+          onClick={() => onOpen("resting-hr")}
         />
         <SubMetricCard
           label="ECG Log"
           value={<span className="font-semibold">Sinus Rhythm</span>}
           action={<ChevronRight className="w-4 h-4 text-muted-foreground" />}
-          interactive
-          onClick={() => alert("Opening ECG log…")}
+          onClick={() => onOpen("ecg")}
         />
       </div>
     </ZoeCard>
@@ -358,7 +391,7 @@ function ActiveTelemetrySourcesCard() {
 
 /* ───────────────────── Activity Stats (shared) ───────────────────── */
 
-function ActivityStatsCard() {
+function ActivityStatsCard({ onOpen }: { onOpen: (id: MetricId) => void }) {
   return (
     <ZoeCard>
       <div className="flex items-center justify-between">
@@ -378,15 +411,33 @@ function ActivityStatsCard() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile icon={Footprints} label="Avg Daily Steps" value="8,432" />
-        <StatTile icon={Heart} label="Resting HR" value="62" suffix="bpm" />
-        <StatTile icon={Moon} label="Sleep Quality" value="7.2" suffix="hrs" />
+        <StatTile
+          icon={Footprints}
+          label="Avg Daily Steps"
+          value="8,432"
+          onClick={() => onOpen("steps")}
+        />
+        <StatTile
+          icon={Heart}
+          label="Resting HR"
+          value="62"
+          suffix="bpm"
+          onClick={() => onOpen("resting-hr")}
+        />
+        <StatTile
+          icon={Moon}
+          label="Sleep Quality"
+          value="7.2"
+          suffix="hrs"
+          onClick={() => onOpen("sleep")}
+        />
         <StatTile
           icon={TrendingUp}
           label="Overall Trend"
           value="+12%"
           suffix="v last week"
           highlight
+          onClick={() => onOpen("hrv")}
         />
       </div>
     </ZoeCard>
@@ -411,6 +462,27 @@ function ZoeCard({
     >
       {children}
     </div>
+  );
+}
+
+function InteractiveCard({
+  children,
+  onOpen,
+  label,
+}: {
+  children: React.ReactNode;
+  onOpen: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={label}
+      className="group text-left rounded-3xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_2px_rgba(20,20,40,0.03),0_2px_12px_-6px_rgba(20,20,40,0.06)] p-6 transition-all hover:-translate-y-0.5 hover:ring-foreground/10 hover:shadow-[0_4px_16px_-4px_rgba(20,20,40,0.10)] outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -451,37 +523,27 @@ function SubMetricCard({
   label,
   value,
   action,
-  interactive,
   onClick,
 }: {
   label: string;
   value: React.ReactNode;
   action?: React.ReactNode;
-  interactive?: boolean;
   onClick?: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-xl bg-muted/60 ring-1 ring-foreground/5 px-3.5 py-2.5 flex items-center justify-between",
-        interactive && "cursor-pointer hover:bg-muted transition-colors"
-      )}
-      onClick={interactive ? onClick : undefined}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onKeyDown={(e) => {
-        if (interactive && onClick && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          onClick();
-        }
-      }}
+    <button
+      type="button"
+      onClick={onClick}
+      className="group text-left rounded-xl bg-muted/60 ring-1 ring-foreground/5 px-3.5 py-2.5 flex items-center justify-between transition-colors hover:bg-muted hover:ring-foreground/10 outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
     >
       <div className="leading-tight">
         <p className="text-[11px] text-muted-foreground">{label}</p>
         <p className="text-foreground mt-0.5">{value}</p>
       </div>
-      {action}
-    </div>
+      {action ?? (
+        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      )}
+    </button>
   );
 }
 
@@ -491,20 +553,24 @@ function StatTile({
   value,
   suffix,
   highlight,
+  onClick,
 }: {
   icon: typeof Heart;
   label: string;
   value: string;
   suffix?: string;
   highlight?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        "rounded-2xl p-4 ring-1 transition-colors",
+        "text-left rounded-2xl p-4 ring-1 transition-all hover:-translate-y-0.5 outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
         highlight
-          ? "bg-[color:var(--zoe-mint-soft)]/70 ring-[color:var(--zoe-mint)]/30"
-          : "bg-muted/50 ring-foreground/5"
+          ? "bg-[color:var(--zoe-mint-soft)]/70 ring-[color:var(--zoe-mint)]/30 hover:bg-[color:var(--zoe-mint-soft)]"
+          : "bg-muted/50 ring-foreground/5 hover:bg-muted hover:ring-foreground/10"
       )}
     >
       <Icon
@@ -530,7 +596,7 @@ function StatTile({
           </span>
         )}
       </p>
-    </div>
+    </button>
   );
 }
 

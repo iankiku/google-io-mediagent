@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface OrbProps {
@@ -9,6 +10,8 @@ interface OrbProps {
 }
 
 export function Orb({ size = 220, listening = false, className }: OrbProps) {
+  const otterSize = Math.round(size * 0.78);
+
   return (
     <div
       className={cn("relative inline-block", className)}
@@ -16,9 +19,21 @@ export function Orb({ size = 220, listening = false, className }: OrbProps) {
     >
       <span className="zoe-orb-halo" />
       <div
-        className={cn("zoe-orb", listening && "zoe-orb--listening")}
+        className={cn("zoe-otter-orb", listening && "zoe-otter-orb--listening")}
         style={{ width: size, height: size }}
-      />
+      >
+        <Image
+          src="/zoe-logo.png"
+          alt=""
+          width={otterSize}
+          height={otterSize}
+          sizes={`${otterSize}px`}
+          className="zoe-otter-orb__art relative z-10"
+          style={{ imageRendering: "pixelated" }}
+          unoptimized
+          priority
+        />
+      </div>
     </div>
   );
 }

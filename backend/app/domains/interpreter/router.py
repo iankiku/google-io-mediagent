@@ -5,6 +5,7 @@ from typing import Optional, List
 from app.core.db import get_db_connection
 from app.domains.interpreter.schemas import TurnResponse
 from app.domains.interpreter.services import process_turn
+from app.domains.interpreter.stt import transcribe as stt_transcribe
 
 router = APIRouter(prefix="/api/interpreter", tags=["Interpreter"])
 
@@ -52,6 +53,31 @@ async def interpreter_turn(
         role=role,
         turn_index=_turn_counter[key],
     )
+
+
+@router.post("/transcribe")
+async def transcribe_only(
+    audio: UploadFile = File(...),
+    source_language: str = Form("en-US"),
+):
+    """STT-only path used by the orb's 'daily' mode. Returns raw transcript text.
+
+    The caller then typically routes that text through /api/chat for a Zoe reply.
+    No medical role-specific prompts applied here.
+    """
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="audio file is empty")
+    mime_type = audio.content_type or "audio/webm"
+    try:
+        text = await stt_transcribe(
+            audio_bytes,
+            source_language=source_language,
+            mime_type=mime_type,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"transcription failed: {e}")
+    return {"transcript": text or ""}
 
 
 @router.post("/end")
