@@ -35,11 +35,9 @@ interface DataPoint {
 export function MetricTrends({ records }: MetricTrendsProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>("HbA1c");
 
-  // Parse records to compile historical metric arrays
   const historicalData = useMemo(() => {
     const dataMap: Record<string, DataPoint[]> = {};
 
-    // Sort records oldest to newest for chronological plotting
     const sortedRecords = [...records].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
@@ -51,24 +49,21 @@ export function MetricTrends({ records }: MetricTrendsProps) {
         const metrics = parsed.lab_metrics || [];
         
         metrics.forEach(m => {
-          // Normalize key name (e.g., "HbA1c Level" -> "HbA1c", "Blood Pressure" -> "BP")
+          // Normalize
           let name = m.metric.trim();
           if (name.toLowerCase().includes("hba1c")) name = "HbA1c";
           if (name.toLowerCase().includes("glucose") || name.toLowerCase().includes("sugar")) name = "Glucose";
           if (name.toLowerCase().includes("cholesterol")) name = "Cholesterol";
           if (name.toLowerCase().includes("pressure") || name.toLowerCase() === "bp") name = "Blood Pressure";
 
-          // Extract numeric value
-          // e.g. "5.7%" -> 5.7, "140 mg/dl" -> 140, "120/80" -> 120 (sys)
+          // Parse numeric
           let valStr = m.value.trim();
           let numericVal = NaN;
           
           if (name === "Blood Pressure") {
-            // BP handles systolic primarily
             const bpParts = valStr.split("/");
             numericVal = parseFloat(bpParts[0]);
           } else {
-            // strip everything except digits and decimal dots
             const cleaned = valStr.replace(/[^\d.]/g, "");
             numericVal = parseFloat(cleaned);
           }
@@ -86,17 +81,15 @@ export function MetricTrends({ records }: MetricTrendsProps) {
           dataMap[name].push(point);
         });
       } catch (e) {
-        // Skip malformed summaries
+        // Ignore errors
       }
     });
 
     return dataMap;
   }, [records]);
 
-  // Available metrics
   const availableMetrics = Object.keys(historicalData);
 
-  // Set initial selected metric if not preset or not available
   React.useEffect(() => {
     if (availableMetrics.length > 0 && !availableMetrics.includes(selectedMetric)) {
       setSelectedMetric(availableMetrics[0]);
@@ -105,7 +98,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
 
   const activePoints = historicalData[selectedMetric] || [];
 
-  // SVG Chart Computations
   const chartWidth = 500;
   const chartHeight = 220;
   const paddingLeft = 40;
@@ -134,12 +126,10 @@ export function MetricTrends({ records }: MetricTrendsProps) {
     if (activePoints.length === 0) return [];
     
     return activePoints.map((point, index) => {
-      // X coordinate spaced evenly
       const x = paddingLeft + (activePoints.length > 1 
         ? (index / (activePoints.length - 1)) * chartAreaWidth 
         : chartAreaWidth / 2);
       
-      // Y coordinate mapped linearly
       const yRange = yMax - yMin;
       const yValNormalized = (point.value - yMin) / (yRange || 1);
       const y = chartHeight - paddingBottom - (yValNormalized * chartAreaHeight);
@@ -148,7 +138,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
     });
   }, [activePoints, yMin, yMax, chartAreaWidth, chartAreaHeight]);
 
-  // Target ranges for reference lines
   const getReferenceRange = (metricName: string) => {
     switch (metricName.toLowerCase()) {
       case "hba1c":
@@ -173,7 +162,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
     return y >= paddingTop && y <= chartHeight - paddingBottom ? y : null;
   }, [refRange, yMin, yMax, chartAreaHeight]);
 
-  // Generate SVG path string
   const linePath = useMemo(() => {
     if (pointsCoordinates.length === 0) return "";
     return pointsCoordinates.reduce((acc, curr, idx) => {
@@ -181,7 +169,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
     }, "");
   }, [pointsCoordinates]);
 
-  // Generate Area Path for filling underneath the line
   const areaPath = useMemo(() => {
     if (pointsCoordinates.length === 0) return "";
     const basePath = linePath;
@@ -228,13 +215,11 @@ export function MetricTrends({ records }: MetricTrendsProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Diagnostic Chart */}
           <div className="w-full overflow-hidden">
             <svg
               viewBox={`0 0 ${chartWidth} ${chartHeight}`}
               className="w-full h-auto overflow-visible select-none"
             >
-              {/* Y Gridlines */}
               {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
                 const y = paddingTop + (chartAreaHeight * ratio);
                 const gridVal = yMax - (yRange() * ratio);
@@ -263,7 +248,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                 );
               })}
 
-              {/* Reference range guidance line */}
               {refLineY !== null && refRange && (
                 <g className="opacity-70">
                   <line
@@ -289,7 +273,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                 </g>
               )}
 
-              {/* Filled Area Gradient */}
               <defs>
                 <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
@@ -297,12 +280,10 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                 </linearGradient>
               </defs>
 
-              {/* Fill Path */}
               {areaPath && (
                 <path d={areaPath} fill="url(#areaGradient)" className="animate-in fade-in duration-500" />
               )}
 
-              {/* Line Path */}
               {linePath && (
                 <path
                   d={linePath}
@@ -315,10 +296,8 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                 />
               )}
 
-              {/* Data Points */}
               {pointsCoordinates.map((pt, idx) => (
                 <g key={idx} className="group cursor-pointer">
-                  {/* Glowing hover circle */}
                   <circle
                     cx={pt.x}
                     cy={pt.y}
@@ -327,7 +306,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                     fillOpacity={0}
                     className="hover:fill-opacity-20 transition-all duration-200"
                   />
-                  {/* Core point circle */}
                   <circle
                     cx={pt.x}
                     cy={pt.y}
@@ -336,7 +314,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                     stroke="#10b981"
                     strokeWidth={2.5}
                   />
-                  {/* Hover Tooltip Value */}
                   <text
                     x={pt.x}
                     y={pt.y - 12}
@@ -344,11 +321,13 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                     fontSize={10}
                     fontWeight="bold"
                     textAnchor="middle"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 duration-200"
+                    stroke="#08090d"
+                    strokeWidth="2.5px"
+                    paintOrder="stroke fill"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                   >
                     {pt.displayValue}
                   </text>
-                  {/* X Axis Date Label */}
                   <text
                     x={pt.x}
                     y={chartHeight - 15}
@@ -362,7 +341,6 @@ export function MetricTrends({ records }: MetricTrendsProps) {
                 </g>
               ))}
 
-              {/* Chart Axes Border */}
               <line
                 x1={paddingLeft}
                 y1={paddingTop}

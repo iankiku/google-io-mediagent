@@ -35,9 +35,8 @@ def generate_embedding(text: str) -> List[float]:
             model="text-embedding-004",
             contents=text
         )
-        # Handle response format of the new GenAI SDK
-        embedding = response.embeddings[0].values
-        return embedding
+        # Get embedding
+        return response.embeddings[0].values
     except Exception as e:
         logger.error(f"Failed to generate embedding: {str(e)}")
         raise e
@@ -71,17 +70,17 @@ def process_medical_file_with_medgemma(
     """
     
     contents = []
-    if is_image:
-        # Pass image bytes directly for multimodal parsing
+    is_pdf = "pdf" in file_type.lower()
+    
+    if is_image or is_pdf:
         contents.append(
             types.Part.from_bytes(
                 data=file_bytes,
-                mime_type=file_type if "/" in file_type else f"image/{file_type}"
+                mime_type=file_type if "/" in file_type else ("application/pdf" if is_pdf else f"image/{file_type}")
             )
         )
-        contents.append("Analyze this medical image / diagnostic report.")
+        contents.append("Analyze this medical document / diagnostic report.")
     else:
-        # Interpret as text document (notes or OCR dump)
         text_content = file_bytes.decode('utf-8', errors='ignore')
         contents.append(f"Analyze this medical text/record:\n\n{text_content}")
 
@@ -100,7 +99,7 @@ def process_medical_file_with_medgemma(
         return ClinicalSummary(**parsed_json)
     except Exception as e:
         logger.error(f"MedGemma clinical extraction failed: {str(e)}")
-        # Return fallback summary
+        # Parse fallback
         return ClinicalSummary(
             summary=f"Raw text parsed from document {file_name}.",
             key_findings=["Error parsing structured clinical findings. Raw content saved."],
@@ -124,10 +123,9 @@ def ingest_medical_record(
     3. Chunks the extracted summary and generates embeddings.
     4. Saves embeddings and chunks to user_record_embeddings.
     """
-    # 1. Parse content
     extracted_data = process_medical_file_with_medgemma(file_bytes, file_type, file_name)
     
-    # Create unified text block for vector embeddings
+    # Build context text
     text_to_embed = f"Medical Record: {file_name}\n"
     text_to_embed += f"Summary: {extracted_data.summary}\n"
     text_to_embed += f"Key Findings: {', '.join(extracted_data.key_findings)}\n"
@@ -145,7 +143,7 @@ def ingest_medical_record(
     cur = conn.cursor()
     
     try:
-        # 2. Insert metadata record
+        # Store metadata
         cur.execute(
             """
             INSERT INTO user_medical_records (user_id, file_name, file_path, file_type, extracted_summary)
@@ -156,13 +154,12 @@ def ingest_medical_record(
         )
         record_id = cur.fetchone()["id"]
         
-        # 3. Chunk text & generate embeddings
         chunks = chunk_text(text_to_embed)
         
         for idx, chunk in enumerate(chunks):
             embedding = generate_embedding(chunk)
             
-            # 4. Save embedding to database
+            # Store embedding
             cur.execute(
                 """
                 INSERT INTO user_record_embeddings (record_id, user_id, chunk_index, chunk_content, embedding)
@@ -197,7 +194,6 @@ def query_user_vector_records(user_id: str, query: str, limit: int = 5) -> List[
     cur = conn.cursor()
     
     try:
-        # Semantic search filtered by user_id
         cur.execute(
             """
             SELECT chunk_content, 

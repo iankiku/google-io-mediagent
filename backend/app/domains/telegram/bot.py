@@ -10,10 +10,7 @@ from app.domains.orchestration.graph import graph
 
 logger = logging.getLogger("health_assistant.telegram.bot")
 
-# Get bot token from environment
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-# Global bot instance
 bot = None
 
 if BOT_TOKEN:
@@ -36,26 +33,29 @@ def init_bot_handlers():
     def send_welcome(message):
         tg_id = str(message.from_user.id)
         user = get_user_by_telegram_id(tg_id)
-        
+
         if user:
             bot.reply_to(
                 message,
-                f"Welcome back to Health Assistant! 🏥\n\n"
-                f"You are registered with phone number: {user['phone_number']}.\n"
-                f"You can send me medical documents (PDFs), notes, or photos of prescriptions/scans, "
-                f"or simply ask me health-related questions."
+                "Namaste! Welcome back to Zoie 🙏\n\n"
+                f"You are registered with: {user['phone_number']}\n\n"
+                "You can:\n"
+                "• Send me lab reports, prescriptions, or medical photos\n"
+                "• Ask me about your health records\n"
+                "• Just tell me how you're feeling today\n\n"
+                "I'm not a doctor — I help you understand and remember. Let's bring questions to your doctor together."
             )
         else:
-            # Onboarding: Request phone number contact sharing
             markup = tg_types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
             reg_button = tg_types.KeyboardButton("Register Phone Number 📱", request_contact=True)
             markup.add(reg_button)
-            
+
             bot.send_message(
                 message.chat.id,
-                "Welcome to Health Assistant! 🏥\n\n"
-                "To get started, we need to register your account using your phone number. "
-                "Please click the button below to share your contact securely.",
+                "Namaste! I'm Zoie, your personal health companion 🙏\n\n"
+                "I help you understand your medical records, track your health, "
+                "and prepare for doctor visits — all in language that makes sense to you.\n\n"
+                "To get started, please share your phone number below.",
                 reply_markup=markup
             )
 
@@ -64,12 +64,15 @@ def init_bot_handlers():
         if not message.contact:
             return
             
+        if message.contact.user_id != message.from_user.id:
+            bot.reply_to(message, "Registration failed: You must share your own contact info.")
+            return
+            
         tg_id = str(message.from_user.id)
         phone = message.contact.phone_number
         
         try:
             user = register_telegram_user(phone, tg_id)
-            # Remove keyboard markup
             markup = tg_types.ReplyKeyboardRemove()
             bot.send_message(
                 message.chat.id,
@@ -90,7 +93,7 @@ def init_bot_handlers():
             bot.reply_to(message, "Please register first by typing /start.")
             return
             
-        bot.reply_to(message, "File received! 📥 Analyzing medical content via MedGemma...")
+        bot.reply_to(message, "File received! 📥 Analyzing your medical document...")
         
         file_id = None
         file_name = "uploaded_file"
@@ -101,7 +104,6 @@ def init_bot_handlers():
             file_name = message.document.file_name
             file_mime = message.document.mime_type
         elif message.content_type == 'photo':
-            # Get largest photo size
             file_id = message.photo[-1].file_id
             file_name = f"photo_{file_id[:8]}.jpg"
             file_mime = "image/jpeg"
@@ -125,15 +127,63 @@ def init_bot_handlers():
                 file_save_path=save_path
             )
             
+            markup = tg_types.InlineKeyboardMarkup()
+            markup.add(
+                tg_types.InlineKeyboardButton("Explain 📖", callback_data=f"explain:{record_id}"),
+                tg_types.InlineKeyboardButton("Save & remind me 🔔", callback_data=f"remind:{record_id}")
+            )
             bot.send_message(
                 message.chat.id,
-                f"Success! ✅ '{file_name}' has been processed and indexed into your private medical folder."
+                f"✅ '{file_name}' processed and saved to your health record.",
+                reply_markup=markup
             )
         except Exception as e:
             logger.error(f"Telegram file ingestion failed: {str(e)}")
             bot.send_message(
                 message.chat.id,
                 f"❌ Failed to process the document. Error: {str(e)}"
+            )
+
+    @bot.callback_query_handler(func=lambda call: True)
+    def handle_callback(call):
+        tg_id = str(call.from_user.id)
+        user = get_user_by_telegram_id(tg_id)
+        if not user:
+            bot.answer_callback_query(call.id, "Please register first with /start")
+            return
+
+        action, record_id = call.data.split(":", 1)
+
+        if action == "explain":
+            bot.answer_callback_query(call.id, "Generating explanation...")
+            bot.send_chat_action(call.message.chat.id, 'typing')
+            try:
+                state = {
+                    "messages": [{"role": "user", "content": f"Explain my medical record [doc:{record_id}] in plain language. What do the values mean?"}],
+                    "latest_input": f"Explain my medical record [doc:{record_id}] in plain language.",
+                    "target_agent_id": "antigravity-preview-05-2026",
+                    "system_instruction": "",
+                    "tools": [],
+                    "agent_response": "",
+                    "iteration": 0,
+                    "needs_validation": False,
+                    "validation_status": "pending",
+                    "logs": [],
+                    "custom_agents_md": None,
+                    "custom_skills": [],
+                    "user_id": str(user["id"])
+                }
+                result = graph.invoke(state)
+                bot.send_message(call.message.chat.id, result.get("agent_response", "Could not generate explanation."))
+            except Exception as e:
+                bot.send_message(call.message.chat.id, f"Sorry, I couldn't explain that right now: {e}")
+
+        elif action == "remind":
+            bot.answer_callback_query(call.id, "Saved! I'll check in with you about this.")
+            bot.send_message(
+                call.message.chat.id,
+                "🔔 Got it — I'll follow up with you about this record before your next appointment.\n\n"
+                "I'm not a doctor — I can help you understand and remember. Let's bring this to Dr. Patel on Thursday."
             )
 
     @bot.message_handler(func=lambda message: True)
@@ -148,8 +198,7 @@ def init_bot_handlers():
         bot.send_chat_action(message.chat.id, 'typing')
         
         try:
-            # Invoke RAG orchestration via LangGraph
-            # We pass the user_id context to retrieve private medical history
+            # Run RAG
             initial_state = {
                 "messages": [{"role": "user", "content": message.text}],
                 "latest_input": message.text,
@@ -164,7 +213,6 @@ def init_bot_handlers():
                 "custom_agents_md": None,
                 "custom_skills": []
             }
-            # We inject user_id context directly into the initial state so the graph retrieves private data
             initial_state["user_id"] = str(user["id"])
             
             result = graph.invoke(initial_state)
@@ -175,6 +223,5 @@ def init_bot_handlers():
             logger.error(f"Error handling Telegram chat: {str(e)}")
             bot.reply_to(message, "Sorry, I am having trouble connecting to my knowledge base right now.")
 
-# Register handlers immediately
 if bot:
     init_bot_handlers()

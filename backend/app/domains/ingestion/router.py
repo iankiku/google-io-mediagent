@@ -20,14 +20,14 @@ async def upload_medical_file(
     Uploads a medical file (PDF, text, image) for a user, passes it to the ingestion service,
     and returns the record ID.
     """
-    # Verify user exists in the DB first
+    # Check user
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute("SELECT id FROM users WHERE id = %s;", (user_id,))
         user = cur.fetchone()
         if not user:
-            # Create user dynamically for testing simplicity
+            # Register user
             cur.execute("INSERT INTO users (id, phone_number) VALUES (%s, %s);", (user_id, f"+1000000000_{uuid.uuid4().hex[:6]}"))
             conn.commit()
     except Exception as e:
@@ -37,19 +37,13 @@ async def upload_medical_file(
         cur.close()
         conn.close()
 
-    # Generate a unique path for the uploaded file
     file_id = str(uuid.uuid4())
     ext = os.path.splitext(file.filename)[1]
     safe_filename = f"{file_id}{ext}"
 
     try:
-        # Read file content
         file_bytes = await file.read()
-
-        # Upload to GCS or local filesystem via storage abstraction
         file_save_path = upload_file(file_bytes, safe_filename, file.content_type)
-
-        # Execute the ingestion pipeline
         record_id = ingest_medical_record(
             user_id=user_id,
             file_name=file.filename,
@@ -89,7 +83,6 @@ def get_user_records(user_id: str):
         
         results = []
         for r in records:
-            # Format extracted summary correctly
             summary_str = r.get("extracted_summary")
             summary_content = ""
             if summary_str:

@@ -17,6 +17,7 @@ const telegramBotToken = appConfig.getSecret("telegramBotToken") ?? "";
 // ---------------------------------------------------------------------------
 
 const apiServices = [
+    "compute.googleapis.com",
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "artifactregistry.googleapis.com",
@@ -57,10 +58,7 @@ const sqlInstance = new gcp.sql.DatabaseInstance(
         databaseVersion: "POSTGRES_15",
         deletionProtection: false,
         settings: {
-            tier: "db-f1-micro",
-            databaseFlags: [
-                { name: "cloudsql.enable_pgvector", value: "on" },
-            ],
+            tier: "db-custom-1-3840",
             ipConfiguration: {
                 ipv4Enabled: true,
                 authorizedNetworks: [
@@ -108,7 +106,9 @@ const artifactRegistryUrl = pulumi.interpolate`${region}-docker.pkg.dev/${projec
 // 4. Cloud Run — Backend (FastAPI + LangGraph + Telegram Bot)
 // ---------------------------------------------------------------------------
 
-const backendImage = pulumi.interpolate`${artifactRegistryUrl}/backend:latest`;
+// Use custom backend image if provided in config, otherwise default to hello-world placeholder for bootstrapping
+const backendImage = appConfig.get("backendImage") ?? "us-docker.pkg.dev/cloudrun/container/hello:latest";
+const containerPort = backendImage.includes("container/hello") ? 8080 : 8000;
 
 const backendEnvs: gcp.types.input.cloudrunv2.ServiceTemplateContainerEnv[] = [
     { name: "GEMINI_API_KEY", value: geminiApiKey },
@@ -136,7 +136,7 @@ const backendService = new gcp.cloudrunv2.Service(
             containers: [
                 {
                     image: backendImage,
-                    ports: [{ containerPort: 8000 }],
+                    ports: { containerPort: containerPort },
                     envs: backendEnvs,
                     resources: {
                         limits: { cpu: "1", memory: "1Gi" },
@@ -148,14 +148,6 @@ const backendService = new gcp.cloudrunv2.Service(
     },
     { dependsOn: enabledApis },
 );
-
-new gcp.cloudrunv2.ServiceIamBinding("backend-public-access", {
-    name: backendService.name,
-    project,
-    location: region,
-    role: "roles/run.invoker",
-    members: ["allUsers"],
-});
 
 // ---------------------------------------------------------------------------
 // Stack Outputs
