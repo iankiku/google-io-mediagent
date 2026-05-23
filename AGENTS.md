@@ -6,6 +6,9 @@ This file serves as the system documentation and guide for Team Nebula's custom 
 
 ## 📂 File-Based Customization Structure
 
+> [!IMPORTANT]
+> Do NOT commit the `.agents/` folder to the repository. Ensure it is added to `.gitignore` to prevent tracking of local agent state and custom skills.
+
 While you can pass configuration inline, the platform allows you to organize your agent's files in a structured `.agents/` directory which is automatically scanned and mounted by the Antigravity agent runtime:
 
 ```
