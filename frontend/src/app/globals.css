@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "tw-shimmer";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -39,6 +40,15 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-zoie-lilac: var(--zoie-lilac);
+  --color-zoie-lilac-soft: var(--zoie-lilac-soft);
+  --color-zoie-mint: var(--zoie-mint);
+  --color-zoie-mint-soft: var(--zoie-mint-soft);
+  --color-zoie-coral: var(--zoie-coral);
+  --color-zoie-coral-soft: var(--zoie-coral-soft);
+  --color-zoie-amber: var(--zoie-amber);
+  --color-zoie-amber-soft: var(--zoie-amber-soft);
+  --color-zoie-sand: var(--zoie-sand);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,38 +59,49 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.974 0.003 286);
+  --foreground: oklch(0.18 0.01 280);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.01 280);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.18 0.01 280);
+  --primary: oklch(0.16 0.01 280);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.955 0.004 286);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.94 0.003 286);
+  --muted-foreground: oklch(0.5 0.01 286);
+  --accent: oklch(0.94 0.02 290);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --destructive: oklch(0.62 0.22 27);
+  --border: oklch(0.91 0.004 286);
+  --input: oklch(0.91 0.004 286);
+  --ring: oklch(0.55 0.04 286);
+  --chart-1: oklch(0.7 0.15 165);
+  --chart-2: oklch(0.78 0.14 90);
+  --chart-3: oklch(0.65 0.16 25);
+  --chart-4: oklch(0.6 0.18 280);
+  --chart-5: oklch(0.5 0.04 286);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar: oklch(0.94 0.006 286);
+  --sidebar-foreground: oklch(0.18 0.01 280);
+  --sidebar-primary: oklch(0.16 0.01 280);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.16 0.01 280);
+  --sidebar-border: oklch(0.9 0.004 286);
+  --sidebar-ring: oklch(0.55 0.04 286);
+
+  /* Zoie accent palette */
+  --zoie-lilac: oklch(0.65 0.13 285);
+  --zoie-lilac-soft: oklch(0.93 0.04 285);
+  --zoie-mint: oklch(0.62 0.13 165);
+  --zoie-mint-soft: oklch(0.93 0.07 165);
+  --zoie-coral: oklch(0.65 0.21 25);
+  --zoie-coral-soft: oklch(0.94 0.05 25);
+  --zoie-amber: oklch(0.78 0.14 75);
+  --zoie-amber-soft: oklch(0.95 0.04 75);
+  --zoie-sand: oklch(0.96 0.01 80);
 }
 
 .dark {
@@ -125,6 +146,89 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
   }
 }
+
+/* ---------- Zoie Orb (CSS-painted) ---------- */
+.zoie-orb {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 18%),
+    radial-gradient(circle at 36% 36%, rgba(180, 235, 235, 0.85) 0%, rgba(180, 235, 235, 0) 32%),
+    radial-gradient(circle at 65% 68%, rgba(8, 33, 78, 0.95) 0%, rgba(8, 33, 78, 0) 42%),
+    radial-gradient(circle at 50% 55%, #1ecad5 0%, #0b6d7d 55%, #082c52 100%);
+  box-shadow:
+    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
+    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
+    0 22px 40px -10px rgba(8, 33, 78, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  animation: zoie-orb-spin 14s ease-in-out infinite alternate;
+}
+.zoie-orb::before {
+  content: "";
+  position: absolute;
+  inset: -28px;
+  border-radius: 9999px;
+  border: 1px solid rgba(190, 210, 235, 0.55);
+  box-shadow:
+    0 0 0 14px rgba(255, 255, 255, 0.55),
+    0 0 0 28px rgba(220, 215, 245, 0.35);
+  pointer-events: none;
+}
+.zoie-orb::after {
+  content: "";
+  position: absolute;
+  inset: -64px;
+  border-radius: 9999px;
+  border: 1px solid rgba(210, 200, 240, 0.4);
+  background: radial-gradient(circle at 50% 50%, rgba(225, 218, 248, 0.25) 0%, rgba(225, 218, 248, 0) 65%);
+  pointer-events: none;
+}
+.zoie-orb-halo {
+  position: absolute;
+  inset: -84px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 52%, rgba(210, 200, 240, 0.45) 0%, rgba(210, 200, 240, 0) 70%);
+  filter: blur(4px);
+  z-index: -1;
+}
+.zoie-orb--listening {
+  animation: zoie-orb-pulse 1.6s ease-in-out infinite;
+}
+@keyframes zoie-orb-spin {
+  0%   { transform: rotate(-3deg) scale(1); }
+  100% { transform: rotate(3deg) scale(1.02); }
+}
+@keyframes zoie-orb-pulse {
+  0%, 100% { transform: scale(1); box-shadow:
+    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
+    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
+    0 22px 40px -10px rgba(8, 33, 78, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 0 rgba(30, 202, 213, 0.25);
+  }
+  50% { transform: scale(1.04); box-shadow:
+    inset -18px -22px 38px rgba(2, 8, 24, 0.55),
+    inset 22px 28px 40px rgba(255, 255, 255, 0.25),
+    0 22px 40px -10px rgba(8, 33, 78, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 28px rgba(30, 202, 213, 0);
+  }
+}
+
+/* Top page progress strip in screenshots */
+.zoie-topbar-strip {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, oklch(0.65 0.13 285), oklch(0.78 0.13 240));
+}
+
+/* Make scrollbars subtle */
+.zoie-scroll::-webkit-scrollbar { width: 8px; }
+.zoie-scroll::-webkit-scrollbar-thumb { background: rgba(60,60,75,0.18); border-radius: 999px; }
+.zoie-scroll::-webkit-scrollbar-track { background: transparent; }
