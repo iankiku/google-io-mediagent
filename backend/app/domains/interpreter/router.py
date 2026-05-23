@@ -15,13 +15,10 @@ _turn_counter: dict[str, int] = {}
 @router.post("/turn", response_model=TurnResponse)
 async def interpreter_turn(
     role: str = Form(...),
+    session_id: Optional[str] = Form(None),
     text: Optional[str] = Form(None),
     audio: Optional[UploadFile] = File(None),
 ):
-    """
-    Process a single interpreter turn.
-    Accepts multipart form with optional audio file, optional text, and required role.
-    """
     audio_bytes = None
     mime_type = "audio/webm"
 
@@ -45,16 +42,15 @@ async def interpreter_turn(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Interpreter processing failed: {str(e)}")
 
-    # Simple global counter for turn indexing
-    session_key = "global"
-    _turn_counter[session_key] = _turn_counter.get(session_key, 0) + 1
+    key = session_id or "default"
+    _turn_counter[key] = _turn_counter.get(key, 0) + 1
 
     return TurnResponse(
         raw_transcript=result["raw_transcript"],
         cleaned=result["cleaned"],
         extracted=result["extracted"],
         role=role,
-        turn_index=_turn_counter[session_key],
+        turn_index=_turn_counter[key],
     )
 
 
@@ -106,8 +102,7 @@ async def end_session(
         cur.close()
         conn.close()
 
-    # Reset turn counter
-    _turn_counter.pop("global", None)
+    _turn_counter.clear()
 
     return {
         "success": True,

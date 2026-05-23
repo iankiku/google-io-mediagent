@@ -95,15 +95,28 @@ infra-init: infra-login
 infra-sync-env:
 	@echo "Syncing .env → Pulumi ESC (ctocopilot-workspace/mediagent/$(STACK))..."
 	@test -f .env || (echo "ERROR: .env file not found. Copy .env.example to .env and fill in values." && exit 1)
-	@PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env set ctocopilot-workspace/mediagent/$(STACK) gcpProject $(GCP_PROJECT)
-	@PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env set ctocopilot-workspace/mediagent/$(STACK) gcpRegion $(GCP_REGION)
-	@PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env set ctocopilot-workspace/mediagent/$(STACK) geminiApiKey $(GEMINI_API_KEY) --secret
-	@PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env set ctocopilot-workspace/mediagent/$(STACK) postgresPassword $(POSTGRES_PASSWORD) --secret
+	@echo 'values:' > /tmp/esc-env.yaml
+	@echo '  geminiApiKey:' >> /tmp/esc-env.yaml
+	@echo '    fn::secret: "$(GEMINI_API_KEY)"' >> /tmp/esc-env.yaml
+	@echo '  postgresPassword:' >> /tmp/esc-env.yaml
+	@echo '    fn::secret: "$(POSTGRES_PASSWORD)"' >> /tmp/esc-env.yaml
 	@if [ -n "$(TELEGRAM_BOT_TOKEN)" ]; then \
-		PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env set ctocopilot-workspace/mediagent/$(STACK) telegramBotToken $(TELEGRAM_BOT_TOKEN) --secret; \
-		echo "  ✓ telegramBotToken synced"; \
+		echo '  telegramBotToken:' >> /tmp/esc-env.yaml; \
+		echo '    fn::secret: "$(TELEGRAM_BOT_TOKEN)"' >> /tmp/esc-env.yaml; \
 	fi
-	@echo "  ✓ All secrets synced to Pulumi ESC."
+	@echo '  gcpProject: "$(GCP_PROJECT)"' >> /tmp/esc-env.yaml
+	@echo '  gcpRegion: "$(GCP_REGION)"' >> /tmp/esc-env.yaml
+	@echo '  pulumiConfig:' >> /tmp/esc-env.yaml
+	@echo '    gcp:project: $${gcpProject}' >> /tmp/esc-env.yaml
+	@echo '    gcp:region: $${gcpRegion}' >> /tmp/esc-env.yaml
+	@echo '    mediagent:geminiApiKey: $${geminiApiKey}' >> /tmp/esc-env.yaml
+	@echo '    mediagent:postgresPassword: $${postgresPassword}' >> /tmp/esc-env.yaml
+	@if [ -n "$(TELEGRAM_BOT_TOKEN)" ]; then \
+		echo '    mediagent:telegramBotToken: $${telegramBotToken}' >> /tmp/esc-env.yaml; \
+	fi
+	@PULUMI_BACKEND_URL=$(PULUMI_BACKEND) pulumi env edit --file /tmp/esc-env.yaml ctocopilot-workspace/mediagent/$(STACK)
+	@rm -f /tmp/esc-env.yaml
+	@echo "  ✓ All secrets synced to Pulumi ESC (including pulumiConfig mappings)."
 	@echo ""
 	@echo "  Now run: make infra-up"
 
@@ -128,7 +141,15 @@ infra-outputs:
 # ─────────────────────────────────────────────────
 
 docker-up:
+	cd frontend && npm install
 	docker compose up --build -d
+
+docker-be:
+	docker compose up --build -d db backend
+
+docker-fe:
+	cd frontend && npm install
+	docker compose up --build -d frontend
 
 docker-down:
 	docker compose down
@@ -145,7 +166,7 @@ docker-push:
 # Local Development
 # ─────────────────────────────────────────────────
 
-dev:
+dev: install
 	npx -y concurrently -k \
 		-n "backend,frontend" \
 		-c "blue.bold,magenta.bold" \
