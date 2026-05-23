@@ -90,7 +90,7 @@ async def _cleanup_pass(raw: str, role: Role, source_language: str, vocab_block:
         config=types.GenerateContentConfig(system_instruction=system_prompt),
     )
     cleaned = (response.text or "").strip()
-    if cleaned == "EMPTY":
+    if cleaned.upper().strip(".\"' ") == "EMPTY":
         return ""
     return cleaned
 
