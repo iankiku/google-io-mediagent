@@ -1,2 +1,4 @@
 environment:
   - mediagent/hackathon
+config:
+  mediagent:backendImage: us-central1-docker.pkg.dev/mediagent-hackathon/mediagent-hackathon/backend:latest
