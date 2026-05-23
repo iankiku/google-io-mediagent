@@ -79,16 +79,16 @@ function TalkHero({
   onOrbTap: () => void;
 }) {
   return (
-    <div className="shrink-0 flex flex-col items-center pt-10 pb-4 px-6">
+    <div className="shrink-0 flex flex-col items-center pt-14 pb-6 px-6">
       <button
         type="button"
         onClick={onOrbTap}
         aria-label={listening ? "Stop listening" : "Tap to speak"}
         className="outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-full transition-transform active:scale-95"
       >
-        <Orb size={144} listening={listening} />
+        <Orb size={168} listening={listening} />
       </button>
-      <h1 className="mt-7 font-semibold text-[22px] tracking-tight">
+      <h1 className="mt-8 font-semibold text-[22px] tracking-tight">
         Hi, I&apos;m Zoe
       </h1>
       <p className="mt-1.5 text-[13px] text-muted-foreground">
