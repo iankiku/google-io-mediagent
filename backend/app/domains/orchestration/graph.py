@@ -1,34 +1,47 @@
 import json
+import re
 from typing import TypedDict, List, Optional
 from langgraph.graph import StateGraph, END
 from google.genai import types
 from app.core.config import client, DEFAULT_BASE_AGENT
-from app.domains.ingestion.services import query_user_vector_records, query_general_medical_knowledge
+from app.domains.retrieval.services import retrieve
 
-# Define the state representation
+INVARIANT_SYSTEM_INSTRUCTION = """
+CRITICAL RULE — Citation Invariant:
+Every medical statement you produce must be either:
+(i) a value from the patient's records, cited as [doc:<record_id>] or with the source document name
+(ii) a definition from a citable reference, cited as LOINC:<code>, RxNorm:<rxcui>, or MedlinePlus:<url>
+(iii) explicitly framed as a question to bring to the doctor, not a claim
+
+No free-form medical synthesis without a citation. Ever.
+
+When your response approaches advice territory, include this line:
+"I'm not a doctor — I can help you understand and remember. Let's bring this to Dr. Patel on Thursday."
+
+When speaking to the patient, use Indian English register where natural — familiar idioms, not dumbed-down language.
+"""
+
 class AgentState(TypedDict):
-    messages: List[dict]           # Chat history: [{"role": "user"|"model", "content": str}]
-    latest_input: str              # The latest prompt from the user
-    target_agent_id: str           # The agent to invoke (e.g., "antigravity-preview-05-2026" or a custom registered ID)
-    system_instruction: str        # Custom system instruction to override or extend behavior
-    tools: List[str]               # Enabled tools, e.g. ["code_execution", "google_search", "url_context"]
-    agent_response: str            # The output of the managed agent interaction
-    iteration: int                 # Loop counter for verification
-    needs_validation: bool         # Whether output validation is enabled
-    validation_status: str         # "passed", "failed", "pending"
-    logs: List[str]                # Execution steps and routing logs
-    custom_agents_md: str          # Custom AGENTS.md content to overlay
-    custom_skills: List[dict]      # Custom skills list to mount
-    user_id: Optional[str]         # Optional user UUID for private medical data lookups
+    messages: List[dict]           # Chat history
+    latest_input: str              # Latest user prompt
+    target_agent_id: str           # Target agent ID
+    system_instruction: str        # Custom system instruction
+    tools: List[str]               # Enabled tools
+    agent_response: str            # Agent response text
+    iteration: int                 # Loop counter
+    needs_validation: bool         # Validation flag
+    validation_status: str         # Validation status
+    logs: List[str]                # Execution logs
+    custom_agents_md: str          # Custom AGENTS.md overlay
+    custom_skills: List[dict]      # Custom skills list
+    user_id: Optional[str]         # User ID for data isolation
 
 # Node 1: Router
-# Uses Gemini to analyze user query and configure the correct agent, instructions, and tools.
 def router_node(state: AgentState) -> dict:
     latest_input = state.get("latest_input", "")
     logs = state.get("logs", [])
     logs.append("[Router] Analyzing query to determine optimal agent configuration...")
     
-    # We will ask Gemini to structure the routing decision in JSON
     prompt = f"""
     Analyze the user prompt and decide the best routing configuration for a managed agent session.
     User prompt: "{latest_input}"
@@ -60,7 +73,6 @@ def router_node(state: AgentState) -> dict:
         system_instruction = decision.get("system_instruction", "You are a helpful assistant.")
         tools = decision.get("tools", ["code_execution", "google_search", "url_context"])
     except Exception as e:
-        # Fallback config
         system_instruction = "You are a helpful assistant with access to search and code execution."
         tools = ["code_execution", "google_search", "url_context"]
         logs.append(f"[Router] Routing failed with error: {str(e)}. Using fallback configuration.")
@@ -74,8 +86,7 @@ def router_node(state: AgentState) -> dict:
         "logs": logs
     }
 
-# Node 2: Managed Agent Execution
-# Invokes the Gemini API interactions service with the routing decisions.
+# Node 2: Execution
 def execution_node(state: AgentState) -> dict:
     latest_input = state.get("latest_input", "")
     target_agent_id = state.get("target_agent_id") or DEFAULT_BASE_AGENT
@@ -85,42 +96,40 @@ def execution_node(state: AgentState) -> dict:
     iteration = state.get("iteration", 0) + 1
     user_id = state.get("user_id")
 
-    logs.append(f"[Executor] Checking pgvector for query: '{latest_input}'")
-    
-    # RAG: Retrieve context from pgvector
+    logs.append(f"[Executor] Running HyDE retrieval pipeline for query: '{latest_input}'")
+
     context_parts = []
-    
-    # 1. Private User Records (if user_id is provided)
-    if user_id:
-        logs.append(f"[Executor] Querying private health records for user {user_id}")
-        user_records = query_user_vector_records(user_id, latest_input, limit=4)
-        if user_records:
-            context_parts.append("### User's Private Medical Records & Diagnostics (Grounded Source of Truth):\n" + 
-                                 "\n".join([f"- {r['chunk_content']}" for r in user_records]))
-            logs.append(f"[Executor] Found {len(user_records)} relevant private record chunks.")
-        else:
-            logs.append("[Executor] No relevant private records found.")
-            
-    # 2. General Medical Knowledge Base (Chronic Disease guidelines)
-    logs.append("[Executor] Querying general medical knowledge base...")
-    gen_kb = query_general_medical_knowledge(latest_input, limit=3)
-    if gen_kb:
-        context_parts.append("### General Chronic Disease Reference & Guidelines:\n" + 
-                             "\n".join([f"- [{k['source_title']} - {k['disease_category']}]: {k['chunk_content']}" for k in gen_kb]))
-        logs.append(f"[Executor] Found {len(gen_kb)} relevant general medical knowledge chunks.")
-        
+
+    # HyDE retrieval (replaces direct pgvector calls)
+    retrieval_user_id = user_id or ""
+    retrieval_result = retrieve(retrieval_user_id, latest_input)
+
+    if retrieval_result.contexts:
+        context_parts.append(
+            "### Retrieved Medical Context (Grounded Source of Truth):\n" +
+            "\n".join([
+                f"- [doc:{c.record_id}] (relevance: {c.score}/10): {c.chunk_content}"
+                for c in retrieval_result.contexts
+            ])
+        )
+        logs.append(f"[Executor] HyDE retrieved {len(retrieval_result.contexts)} reranked contexts.")
+        logs.append(f"[Executor] HyDE iterations produced {len(retrieval_result.hypothetical_answers)} hypothetical answers.")
+    else:
+        logs.append("[Executor] HyDE retrieval returned no relevant contexts.")
+
+    # Prepend citation invariant to system instruction
+    system_instruction = INVARIANT_SYSTEM_INSTRUCTION + "\n" + system_instruction
+
     if context_parts:
         context_str = "\n\n".join(context_parts)
-        system_instruction += f"\n\n[Grounded Medical Context]\n{context_str}\n\nStrict ground rules: Base your answers primarily on the user's private medical records when available. Be helpful, clear, and translate complex terms into plain language. If the user asks general chronic disease questions, refer to the reference guidelines."
+        system_instruction += f"\n\n[Grounded Medical Context]\n{context_str}\n\nStrict ground rules: Base your answers primarily on the patient's retrieved records when available. Cite every medical claim with [doc:<record_id>], LOINC:<code>, or RxNorm:<rxcui>. Be helpful, clear, and translate complex terms into plain language. If the user asks general chronic disease questions, refer to the reference guidelines."
         
     logs.append(f"[Executor] Invoking Managed Agent '{target_agent_id}' (Iteration {iteration})...")
     
-    # Map tool string to types.Tool
     api_tools = []
     for t in tools:
         api_tools.append({"type": t})
 
-    # Build environment structure dynamically for inline customization
     custom_agents_md = state.get("custom_agents_md")
     custom_skills = state.get("custom_skills") or []
     
@@ -172,8 +181,7 @@ def execution_node(state: AgentState) -> dict:
         "logs": logs
     }
 
-# Node 3: Output Validator
-# Uses Gemini to inspect the output. If it finds critical errors or unmet requirements, it marks the validation as failed.
+# Node 3: Validator
 def validator_node(state: AgentState) -> dict:
     latest_input = state.get("latest_input", "")
     agent_response = state.get("agent_response", "")
@@ -212,6 +220,13 @@ def validator_node(state: AgentState) -> dict:
         feedback = ""
         logs.append(f"[Validator] Validation failed to run: {str(e)}. Defaulting to PASS.")
 
+    # Citation-presence check: medical claims must have citation tokens
+    medical_keywords = re.compile(r'(mg/dL|cholesterol|glucose|BP|HbA1c|blood pressure|LDL|potassium|creatinine|lisinopril|metformin)', re.IGNORECASE)
+    citation_tokens = re.compile(r'(LOINC:|RxNorm:|MedlinePlus:|ICD-10:|\[doc:)')
+    if medical_keywords.search(agent_response) and not citation_tokens.search(agent_response):
+        passed = False
+        feedback = "Response contains medical claims without citation tokens. Add LOINC:, RxNorm:, or [doc:] citations."
+
     if passed:
         logs.append("[Validator] Output validation passed!")
         validation_status = "passed"
@@ -224,29 +239,23 @@ def validator_node(state: AgentState) -> dict:
         "logs": logs
     }
 
-# Conditional edge logic
 def should_continue(state: AgentState) -> str:
-    # If validation is disabled, end immediately
     if not state.get("needs_validation", False):
         return END
         
-    # If iteration exceeds limit, end to avoid infinite loop
     if state.get("iteration", 0) >= 3:
         state.get("logs", []).append("[Graph] Max verification iterations reached. Terminating graph.")
         return END
         
-    # Check validation status
     status = state.get("validation_status", "pending")
     if status == "passed":
         return END
     elif status == "failed":
-        # Loop back to executor
         state.get("logs", []).append("[Graph] Re-routing to execution node for refinement.")
         return "execution"
     else:
         return END
 
-# Build the LangGraph Workflow
 builder = StateGraph(AgentState)
 
 builder.add_node("router", router_node)
@@ -256,7 +265,6 @@ builder.add_node("validator", validator_node)
 builder.set_entry_point("router")
 builder.add_edge("router", "execution")
 
-# execution can continue to validator or end
 builder.add_conditional_edges(
     "execution",
     lambda state: "validator" if state.get("needs_validation", False) else END,
@@ -266,7 +274,6 @@ builder.add_conditional_edges(
     }
 )
 
-# validator can loop back to execution or end
 builder.add_conditional_edges(
     "validator",
     should_continue,

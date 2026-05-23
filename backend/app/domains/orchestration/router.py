@@ -29,7 +29,6 @@ class ChatResponse(BaseModel):
 @router.post("", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        # Initialize LangGraph state
         initial_state = {
             "messages": request.chat_history or [],
             "latest_input": request.message,
@@ -46,7 +45,6 @@ async def chat(request: ChatRequest):
             "user_id": request.user_id
         }
         
-        # Execute the LangGraph
         result = graph.invoke(initial_state)
         
         return ChatResponse(

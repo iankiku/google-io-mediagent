@@ -1,16 +1,18 @@
-# Pulumi ESC Environment Definition
-# Create this environment in Pulumi Cloud:
-#   pulumi env init <org>/mediagent-dev
-#   pulumi env edit <org>/mediagent-dev
-# Then paste this content, replacing placeholder values.
+# Pulumi ESC Environment for MediAgent Hackathon
+#
+# Created automatically by: make infra-init
+# Edit secrets with:        make infra-secrets
+#
+# This file is a TEMPLATE. Real values are stored in Pulumi Cloud, not git.
 
 values:
   geminiApiKey:
-    fn::secret: "REPLACE_WITH_KEY"
+    fn::secret: "REPLACE_WITH_GEMINI_API_KEY"
   postgresPassword:
-    fn::secret: "REPLACE_WITH_PASSWORD"
-  telegramBotToken:
-    fn::secret: "REPLACE_WITH_TOKEN"
+    fn::secret: "REPLACE_WITH_STRONG_PASSWORD"
+  # telegramBotToken:
+  #   fn::secret: "REPLACE_WITH_TOKEN"
+
   gcpProject: "REPLACE_WITH_PROJECT_ID"
   gcpRegion: "us-central1"
 
@@ -19,4 +21,4 @@ values:
     gcp:region: ${gcpRegion}
     mediagent:geminiApiKey: ${geminiApiKey}
     mediagent:postgresPassword: ${postgresPassword}
-    mediagent:telegramBotToken: ${telegramBotToken}
+    # mediagent:telegramBotToken: ${telegramBotToken}

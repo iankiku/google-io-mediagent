@@ -26,7 +26,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "@/features/chat/MessageBubble";
 import { TracePanel } from "@/features/trace/TracePanel";
 
-// Health Assistant Dashboard Components
 import { FileUploader } from "@/features/dashboard/FileUploader";
 import { Timeline } from "@/features/dashboard/Timeline";
 import { MetricTrends } from "@/features/dashboard/MetricTrends";
@@ -46,7 +45,7 @@ interface MedicalRecord {
   file_name: string;
   file_type: string;
   status: string;
-  extracted_summary?: string; // Stringified JSON
+  extracted_summary?: string; // JSON string
   created_at: string;
 }
 
@@ -56,7 +55,6 @@ interface Message {
   timestamp: string;
 }
 
-// Beautiful static mock data for demo / empty states
 const DEMO_USER: User = {
   id: "demo-patient-uuid-001",
   phone_number: "+1 (555) 762-9844",
@@ -131,24 +129,20 @@ const DEMO_RECORDS: MedicalRecord[] = [
 ];
 
 export default function Home() {
-  // App States
   const [users, setUsers] = useState<User[]>([DEMO_USER]);
   const [selectedUserId, setSelectedUserId] = useState<string>("demo-patient-uuid-001");
   const [records, setRecords] = useState<MedicalRecord[]>(DEMO_RECORDS);
   const [isRecordsLoading, setIsRecordsLoading] = useState(false);
   const [botStatus, setBotStatus] = useState<{ configured: boolean; running: boolean }>({ configured: false, running: false });
   
-  // Chat States
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"timeline" | "trends" | "logs">("timeline");
   
-  // Create New User Form State
   const [newPhone, setNewPhone] = useState("");
   const [isRegisteringUser, setIsRegisteringUser] = useState(false);
   
-  // LangGraph trace logs
   const [traceLogs, setTraceLogs] = useState<string[]>([]);
   const [toolsUsed, setToolsUsed] = useState<string[]>([]);
   const [routingInstruction, setRoutingInstruction] = useState<string>("");
@@ -156,20 +150,17 @@ export default function Home() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isChatLoading]);
 
-  // Fetch initial data
   useEffect(() => {
     fetchUsers();
     fetchBotStatus();
   }, []);
 
-  // Fetch records whenever active user changes
   useEffect(() => {
     if (selectedUserId === "demo-patient-uuid-001") {
       setRecords(DEMO_RECORDS);
@@ -197,7 +188,6 @@ export default function Home() {
       const response = await fetch(`${API_BASE}/api/ingest/users`);
       if (response.ok) {
         const data = await response.json();
-        // Merge demo user with database users
         setUsers([DEMO_USER, ...data]);
       }
     } catch (err) {
@@ -241,19 +231,16 @@ export default function Home() {
     setIsRegisteringUser(true);
     
     try {
-      // Create user by posting dummy contact sharing payload structure
       const response = await fetch(`${API_BASE}/api/ingest/upload`, {
         method: "POST",
         body: (() => {
           const form = new FormData();
           form.append("user_id", `web-auth-${Math.random().toString(36).substr(2, 9)}`);
-          // Using upload endpoint will automatically insert user if they do not exist
           return form;
         })()
       });
       
-      // In production, we register users using specialized backend DB handlers. Let's do a direct insert via API simulation or call fetch
-      // For this demo, let's append a mock user locally and write them if needed
+      // Fallback
       const mockId = `user-${Math.random().toString(36).substr(2, 9)}`;
       const newUser: User = {
         id: mockId,
@@ -287,7 +274,6 @@ export default function Home() {
     setInput("");
     setIsChatLoading(true);
     
-    // Clear logs
     setTraceLogs(["[Graph] Sending chat prompt to RAG orchestrator..."]);
     setToolsUsed([]);
     setRoutingInstruction("");
@@ -300,7 +286,7 @@ export default function Home() {
         message: userMsg.content,
         needs_validation: false,
         chat_history: chatContextHistory,
-        user_id: selectedUserId === "demo-patient-uuid-001" ? null : selectedUserId // Pass db user id for actual RAG
+        user_id: selectedUserId === "demo-patient-uuid-001" ? null : selectedUserId
       };
 
       const response = await fetch(`${API_BASE}/api/chat`, {
@@ -325,7 +311,7 @@ export default function Home() {
       setValidationStatus(data.validation_status || "passed");
     } catch (err) {
       console.error(err);
-      // Fallback response for offline sandbox run/testing
+      // Fallback
       let mockReply = "I am processing your query. Please confirm your database connection is active.";
       if (selectedUserId === "demo-patient-uuid-001") {
         if (input.toLowerCase().includes("hba1c") || input.toLowerCase().includes("blood")) {
@@ -363,9 +349,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen bg-[#08090d] text-[#e2e8f0] font-sans overflow-hidden">
-      {/* SIDEBAR - PATIENT MANAGEMENT */}
       <aside className="w-80 border-r border-[#1a202c] bg-[#0c0f16] flex flex-col h-full shrink-0">
-        {/* Brand Header */}
         <div className="p-6 border-b border-[#1a202c]">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -377,8 +361,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* Telegram Bot status card */}
         <div className="p-4 border-b border-[#1a202c] bg-[#090b10]/40 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Telegram Bot Link</span>
@@ -401,7 +383,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* User / Patient Selector */}
         <div className="flex-1 flex flex-col min-h-0 pt-4">
           <div className="px-4 pb-2 flex items-center justify-between">
             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Active Patient Profiles</span>
@@ -446,7 +427,6 @@ export default function Home() {
           </ScrollArea>
         </div>
 
-        {/* Quick Add Patient */}
         <div className="p-4 border-t border-[#1a202c] bg-[#090b10]">
           <form onSubmit={handleRegisterUser} className="space-y-2">
             <label className="text-[9px] text-zinc-550 font-bold uppercase tracking-wider block">Quick Add Patient</label>
@@ -466,12 +446,9 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* DASHBOARD BODY - 2 COLUMN SPLIT */}
       <main className="flex-1 flex h-full overflow-hidden">
         
-        {/* COLUMN 1: CLINICAL RAG CHAT (45% Width) */}
         <section className="w-[42%] border-r border-[#1a202c] flex flex-col h-full bg-[#08090d]">
-          {/* Chat Header */}
           <header className="h-[73px] border-b border-[#1a202c] bg-[#0c0f16]/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0">
             <div>
               <h2 className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -486,7 +463,6 @@ export default function Home() {
             </Badge>
           </header>
 
-          {/* Chat History */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {messages.map((m, i) => (
               <MessageBubble key={i} message={m} />
@@ -505,7 +481,6 @@ export default function Home() {
             <div ref={scrollRef} />
           </div>
 
-          {/* Chat Input */}
           <div className="p-4 border-t border-[#1a202c] bg-[#0c0f16]/50">
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <Input
@@ -522,9 +497,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* COLUMN 2: PATIENT METRICS & TIMELINE (58% Width) */}
         <section className="flex-1 flex flex-col h-full bg-[#08090d]">
-          {/* Tab Navigation Header */}
           <header className="h-[73px] border-b border-[#1a202c] bg-[#0c0f16]/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0">
             <div className="flex gap-2">
               <Button
@@ -557,12 +530,10 @@ export default function Home() {
             </div>
           </header>
 
-          {/* Tab Content Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
             {activeTab === "timeline" && (
               <div className="space-y-6">
-                {/* Drag and Drop Ingest Zone */}
                 <FileUploader
                   userId={selectedUserId}
                   apiBase={API_BASE}
@@ -573,7 +544,6 @@ export default function Home() {
                   }}
                 />
                 
-                {/* Timeline */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold text-white pl-1">Chronological Health Journal</h3>
                   <Timeline records={records} isLoading={isRecordsLoading} />

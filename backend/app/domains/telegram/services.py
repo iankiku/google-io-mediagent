@@ -42,7 +42,6 @@ def register_telegram_user(phone_number: str, telegram_id: str) -> dict:
     If a user exists with this telegram_id, returns it.
     Otherwise, creates a new user.
     """
-    # Normalize phone number
     normalized_phone = phone_number.replace(" ", "").replace("-", "")
     if not normalized_phone.startswith("+"):
         normalized_phone = "+" + normalized_phone
@@ -50,12 +49,10 @@ def register_telegram_user(phone_number: str, telegram_id: str) -> dict:
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Check by phone first
         cur.execute("SELECT id, phone_number, telegram_id FROM users WHERE phone_number = %s;", (normalized_phone,))
         user_by_phone = cur.fetchone()
         
         if user_by_phone:
-            # Update telegram_id if different or missing
             if user_by_phone["telegram_id"] != str(telegram_id):
                 cur.execute(
                     "UPDATE users SET telegram_id = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING id, phone_number, telegram_id;",
@@ -67,13 +64,11 @@ def register_telegram_user(phone_number: str, telegram_id: str) -> dict:
                 return user
             return user_by_phone
             
-        # Check by telegram id next
         cur.execute("SELECT id, phone_number, telegram_id FROM users WHERE telegram_id = %s;", (str(telegram_id),))
         user_by_tg = cur.fetchone()
         if user_by_tg:
             return user_by_tg
             
-        # Create a new user
         cur.execute(
             """
             INSERT INTO users (phone_number, telegram_id)
