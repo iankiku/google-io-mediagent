@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   AlertTriangle,
   ArrowRight,
   Briefcase,
   CheckCircle2,
+  ChevronDown,
   Eye,
   FileText,
   ImageIcon,
@@ -33,6 +34,29 @@ export interface ScanItem {
   src?: string;
 }
 
+export interface DetailSection {
+  /** Stable id, used as section anchor + ask prompt scoping. */
+  id: string;
+  /** Title shown in the row header. */
+  title: string;
+  /** Icon shown on the left in a tonal pill. */
+  icon: React.ComponentType<{ className?: string }>;
+  /** Optional tone for the icon pill. Defaults to neutral. */
+  tone?: EntryTone;
+  /** One-line collapsed summary (always visible). */
+  summary: string;
+  /** Optional expanded prose. */
+  body?: string;
+  /** Optional numbered list (used by Recommendations, Plan steps, etc). */
+  items?: string[];
+  /** Optional bullets (Symptoms, Triggers, etc). */
+  bullets?: string[];
+  /** Optional lab rows rendered as a table inside the section. */
+  labRows?: LabResult[];
+  /** Expanded by default when true. */
+  defaultOpen?: boolean;
+}
+
 export interface TimelineEntryDetailData {
   id: string;
   date: string;
@@ -50,6 +74,8 @@ export interface TimelineEntryDetailData {
   hasClinicalNotes?: boolean;
   labResults?: LabResult[];
   scans?: ScanItem[];
+  /** Structured per-section breakdown (postvisit.ai-style). */
+  sections?: DetailSection[];
 }
 
 interface Props {
@@ -86,7 +112,7 @@ export function TimelineEntryDetail({ entry, onClose, onAskAbout }: Props) {
         role="dialog"
         aria-label={entry ? `${entry.title} detail` : undefined}
         className={cn(
-          "fixed right-0 top-0 z-40 h-full w-full sm:w-[560px] bg-card border-l border-border shadow-[0_30px_60px_-20px_rgba(20,20,40,0.25)] transition-transform duration-300 ease-out",
+          "fixed right-0 top-0 z-40 h-full w-full sm:w-[600px] bg-card border-l border-border shadow-[0_30px_60px_-20px_rgba(20,20,40,0.25)] transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
       >
@@ -108,7 +134,8 @@ function DetailBody({
   onAskAbout: (ctx: AskContext) => void;
 }) {
   const Icon = entry.icon;
-  const body = entry.expandedDescription ?? entry.description;
+  const fallbackBody = entry.expandedDescription ?? entry.description;
+  const hasStructured = !!entry.sections && entry.sections.length > 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -145,7 +172,7 @@ function DetailBody({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto zoe-scroll px-6 py-6 space-y-6">
-        {/* Badge + description */}
+        {/* Badge + 1-line description */}
         <section>
           {entry.badge && (
             <span
@@ -161,54 +188,41 @@ function DetailBody({
               {entry.badge.label}
             </span>
           )}
-          <p className="text-sm text-foreground/85 leading-relaxed whitespace-pre-line">
-            {body}
-          </p>
+          {!hasStructured && (
+            <p className="text-sm text-foreground/85 leading-relaxed whitespace-pre-line">
+              {fallbackBody}
+            </p>
+          )}
+          {hasStructured && (
+            <p className="text-sm text-foreground/70 leading-relaxed">
+              {entry.description}
+            </p>
+          )}
         </section>
 
-        {/* Lab results */}
-        {entry.labResults && entry.labResults.length > 0 && (
-          <section>
-            <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground mb-2">
-              Lab Results
-            </p>
-            <div className="rounded-2xl bg-card ring-1 ring-foreground/8 overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 py-2.5 bg-muted/40 text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground">
-                <span>Analyte</span>
-                <span>Result</span>
-                <span>Reference</span>
-              </div>
-              <div className="divide-y divide-border/60">
-                {entry.labResults.map((lab) => (
-                  <div
-                    key={lab.name}
-                    className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 py-2.5 items-center"
-                  >
-                    <span className="text-[13px] text-foreground/85">{lab.name}</span>
-                    <span
-                      className={cn(
-                        "text-[13px] font-semibold tabular-nums",
-                        lab.flag === "high" && "text-[color:var(--zoe-coral)]",
-                        lab.flag === "low" && "text-[color:var(--zoe-amber)]",
-                        (!lab.flag || lab.flag === "normal") && "text-foreground"
-                      )}
-                    >
-                      {lab.value}
-                      <span className="text-[11px] text-muted-foreground font-normal ml-1">
-                        {lab.unit}
-                      </span>
-                    </span>
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {lab.refRange}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Structured sections (postvisit.ai-style) */}
+        {hasStructured && (
+          <section
+            aria-label="Visit breakdown"
+            className="space-y-2"
+          >
+            {entry.sections!.map((s) => (
+              <SectionRow
+                key={s.id}
+                entry={entry}
+                section={s}
+                onAskAbout={onAskAbout}
+              />
+            ))}
           </section>
         )}
 
-        {/* Scans */}
+        {/* Legacy fallback: only when not using structured sections */}
+        {!hasStructured && entry.labResults && entry.labResults.length > 0 && (
+          <LegacyLabTable rows={entry.labResults} />
+        )}
+
+        {/* Scans (always shown when present — visual artifacts live outside the section list) */}
         {entry.scans && entry.scans.length > 0 && (
           <section>
             <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground mb-2">
@@ -251,8 +265,8 @@ function DetailBody({
           </section>
         )}
 
-        {/* AI Takeaway */}
-        {entry.aiTakeaway && (
+        {/* Legacy AI Takeaway: only when no structured sections (sections carry their own asks). */}
+        {!hasStructured && entry.aiTakeaway && (
           <section className="rounded-2xl bg-[color:var(--zoe-lilac-soft)]/50 ring-1 ring-[color:var(--zoe-lilac)]/15 px-4 py-3.5">
             <p className="text-[11px] font-semibold text-[color:var(--zoe-lilac)] flex items-center gap-1.5">
               <Sparkles className="w-3 h-3" />
@@ -338,6 +352,243 @@ function DetailBody({
   );
 }
 
+/* ───────── Section row (collapsible, with Ask + Expand) ───────── */
+
+function SectionRow({
+  entry,
+  section,
+  onAskAbout,
+}: {
+  entry: TimelineEntryDetailData;
+  section: DetailSection;
+  onAskAbout: (ctx: AskContext) => void;
+}) {
+  const [open, setOpen] = useState(!!section.defaultOpen);
+  const Icon = section.icon;
+  const tone = section.tone ?? "lilac";
+
+  const hasExpandable = useMemo(
+    () =>
+      !!section.body ||
+      (section.items && section.items.length > 0) ||
+      (section.bullets && section.bullets.length > 0) ||
+      (section.labRows && section.labRows.length > 0),
+    [section]
+  );
+
+  const askPrompt = `In the ${entry.title} from ${entry.date}, walk me through the "${section.title}" section. ${section.summary}`;
+
+  return (
+    <div className="rounded-2xl bg-card ring-1 ring-foreground/8 hover:ring-foreground/15 transition-all overflow-hidden">
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+            toneBgSoft(tone),
+            toneText(tone)
+          )}
+          aria-hidden
+        >
+          <Icon className="w-4 h-4" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => hasExpandable && setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={`section-body-${section.id}`}
+          disabled={!hasExpandable}
+          className="flex-1 min-w-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-md"
+        >
+          <p className="text-[14px] font-semibold tracking-tight truncate">
+            {section.title}
+          </p>
+          {!open && (
+            <p className="text-[12.5px] text-muted-foreground leading-snug line-clamp-1 mt-0.5">
+              {section.summary}
+            </p>
+          )}
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAskAbout({
+                label: `${section.title} — ${entry.title}`,
+                prompt: askPrompt,
+                surface: "timeline-section",
+              });
+            }}
+            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-[color:var(--zoe-mint-soft)] text-[color:var(--zoe-mint)] hover:brightness-95 text-[11px] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--zoe-mint)]/40"
+            aria-label={`Ask Zoe about ${section.title}`}
+          >
+            <CheckCircle2 className="w-3 h-3" />
+            Ask
+          </button>
+          {hasExpandable && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-full text-[11px] font-semibold text-foreground/60 hover:text-foreground hover:bg-muted/60 transition outline-none focus-visible:ring-2 focus-visible:ring-foreground/15"
+              aria-label={open ? `Collapse ${section.title}` : `Expand ${section.title}`}
+            >
+              <span>{open ? "Collapse" : "Expand"}</span>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 transition-transform",
+                  open && "rotate-180"
+                )}
+              />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded body */}
+      {open && hasExpandable && (
+        <div
+          id={`section-body-${section.id}`}
+          className="px-4 pb-4 pt-1 space-y-3 border-t border-border/40"
+        >
+          {section.body && (
+            <p className="text-[13px] text-foreground/85 leading-relaxed whitespace-pre-line pt-3">
+              {section.body}
+            </p>
+          )}
+
+          {section.bullets && section.bullets.length > 0 && (
+            <ul className="space-y-1.5">
+              {section.bullets.map((b, i) => (
+                <li
+                  key={i}
+                  className="flex gap-2 text-[13px] text-foreground/85 leading-relaxed"
+                >
+                  <span
+                    className={cn(
+                      "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+                      toneBg(tone)
+                    )}
+                    aria-hidden
+                  />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {section.items && section.items.length > 0 && (
+            <ol className="space-y-2">
+              {section.items.map((item, i) => (
+                <li
+                  key={i}
+                  className="flex gap-3 text-[13px] text-foreground/85 leading-relaxed"
+                >
+                  <span
+                    className={cn(
+                      "shrink-0 w-5 h-5 rounded-full text-[11px] font-semibold flex items-center justify-center",
+                      toneBgSoft(tone),
+                      toneText(tone)
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="pt-0.5">{item}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {section.labRows && section.labRows.length > 0 && (
+            <div className="rounded-xl ring-1 ring-foreground/8 overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-3 py-2 bg-muted/40 text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground">
+                <span>Analyte</span>
+                <span>Result</span>
+                <span>Reference</span>
+              </div>
+              <div className="divide-y divide-border/60">
+                {section.labRows.map((lab) => (
+                  <div
+                    key={lab.name}
+                    className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-3 py-2 items-center"
+                  >
+                    <span className="text-[12.5px] text-foreground/85">
+                      {lab.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[12.5px] font-semibold tabular-nums",
+                        lab.flag === "high" && "text-[color:var(--zoe-coral)]",
+                        lab.flag === "low" && "text-[color:var(--zoe-amber)]",
+                        (!lab.flag || lab.flag === "normal") && "text-foreground"
+                      )}
+                    >
+                      {lab.value}
+                      <span className="text-[10.5px] text-muted-foreground font-normal ml-1">
+                        {lab.unit}
+                      </span>
+                    </span>
+                    <span className="text-[10.5px] text-muted-foreground tabular-nums">
+                      {lab.refRange}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────── Legacy lab table (when entry has no sections) ───────── */
+
+function LegacyLabTable({ rows }: { rows: LabResult[] }) {
+  return (
+    <section>
+      <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground mb-2">
+        Lab Results
+      </p>
+      <div className="rounded-2xl bg-card ring-1 ring-foreground/8 overflow-hidden">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 py-2.5 bg-muted/40 text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground">
+          <span>Analyte</span>
+          <span>Result</span>
+          <span>Reference</span>
+        </div>
+        <div className="divide-y divide-border/60">
+          {rows.map((lab) => (
+            <div
+              key={lab.name}
+              className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-4 py-2.5 items-center"
+            >
+              <span className="text-[13px] text-foreground/85">{lab.name}</span>
+              <span
+                className={cn(
+                  "text-[13px] font-semibold tabular-nums",
+                  lab.flag === "high" && "text-[color:var(--zoe-coral)]",
+                  lab.flag === "low" && "text-[color:var(--zoe-amber)]",
+                  (!lab.flag || lab.flag === "normal") && "text-foreground"
+                )}
+              >
+                {lab.value}
+                <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                  {lab.unit}
+                </span>
+              </span>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {lab.refRange}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AttachmentChip({
   label,
   icon,
@@ -374,6 +625,20 @@ function toneBgSoft(tone: EntryTone) {
       return "bg-[color:var(--zoe-amber-soft)]";
     case "coral":
       return "bg-[color:var(--zoe-coral-soft)]";
+  }
+}
+
+function toneBg(tone: EntryTone) {
+  switch (tone) {
+    case "mint":
+      return "bg-[color:var(--zoe-mint)]";
+    case "lilac":
+    case "lilac-dark":
+      return "bg-[color:var(--zoe-lilac)]";
+    case "amber":
+      return "bg-[color:var(--zoe-amber)]";
+    case "coral":
+      return "bg-[color:var(--zoe-coral)]";
   }
 }
 

@@ -5,21 +5,31 @@ import {
   Activity,
   AlertTriangle,
   Briefcase,
+  Calendar,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   FileText,
+  Heart,
+  History,
   Info,
+  ListChecks,
   MessageCircle,
   Moon,
   Paperclip,
+  ScrollText,
   Sparkles,
   Stethoscope,
+  Target,
   TestTube,
+  Thermometer,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AskContext } from "./AskZoePopup";
 import {
   TimelineEntryDetail,
+  type DetailSection,
   type EntryTone,
   type LabResult,
   type ScanItem,
@@ -55,6 +65,7 @@ interface TimelineEntry {
   parentId?: string;
   labResults?: LabResult[];
   scans?: ScanItem[];
+  sections?: DetailSection[];
 }
 
 const HEALTH_SUMMARY = {
@@ -76,7 +87,7 @@ const ENTRIES: TimelineEntry[] = [
     date: "OCT 24, 2023",
     title: "Comprehensive Metabolic Panel",
     description:
-      "Annual blood work results reviewed by Dr. Sarah Jenkins. All metabolic markers, including glucose, calcium, and electrolytes, indicate stable metabolic function.",
+      "Annual blood work, ordered by Dr. Sarah Jenkins. 14-panel chemistry profile drawn fasting, 8:42am.",
     icon: TestTube,
     tone: "lilac",
     badge: { label: "Within Normal Thresholds", tone: "mint" },
@@ -90,10 +101,107 @@ const ENTRIES: TimelineEntry[] = [
       { name: "Sodium", value: "140", unit: "mmol/L", refRange: "136 – 145", flag: "normal" },
       { name: "Potassium", value: "4.2", unit: "mmol/L", refRange: "3.5 – 5.1", flag: "normal" },
       { name: "Chloride", value: "102", unit: "mmol/L", refRange: "98 – 107", flag: "normal" },
+      { name: "CO2 (Bicarbonate)", value: "25", unit: "mmol/L", refRange: "22 – 29", flag: "normal" },
       { name: "BUN", value: "14", unit: "mg/dL", refRange: "7 – 20", flag: "normal" },
       { name: "Creatinine", value: "0.9", unit: "mg/dL", refRange: "0.6 – 1.2", flag: "normal" },
+      { name: "eGFR", value: ">90", unit: "mL/min/1.73m²", refRange: "≥ 60", flag: "normal" },
+      { name: "Albumin", value: "4.4", unit: "g/dL", refRange: "3.5 – 5.0", flag: "normal" },
+      { name: "Total Protein", value: "7.2", unit: "g/dL", refRange: "6.0 – 8.3", flag: "normal" },
+      { name: "Total Bilirubin", value: "0.7", unit: "mg/dL", refRange: "0.1 – 1.2", flag: "normal" },
+      { name: "Alkaline Phosphatase", value: "78", unit: "U/L", refRange: "44 – 147", flag: "normal" },
       { name: "ALT", value: "22", unit: "U/L", refRange: "7 – 56", flag: "normal" },
       { name: "AST", value: "24", unit: "U/L", refRange: "10 – 40", flag: "normal" },
+    ],
+    sections: [
+      {
+        id: "order-context",
+        title: "Order Context",
+        icon: ScrollText,
+        tone: "lilac",
+        summary: "Annual screening, ordered by Dr. Jenkins (PCP). Fasting draw.",
+        body:
+          "Ordered as part of your annual physical on Oct 21. Drawn fasting at 8:42am on Oct 24 at Quest Labs (San Francisco — Sutter St).\n\nLab panel: 14-analyte comprehensive metabolic profile (glucose, electrolytes, kidney + liver markers, with calculated eGFR reported alongside creatinine).",
+      },
+      {
+        id: "overall-impression",
+        title: "Overall Impression",
+        icon: ClipboardCheck,
+        tone: "mint",
+        summary: "All 14 analytes within reference range. No flags.",
+        body:
+          "Dr. Jenkins reviewed the panel on Oct 25 and signed off as normal. No analytes flagged high or low. eGFR >90 confirms preserved renal filtration. The panel reflects stable metabolic, renal, and hepatic function compared to your prior CMP from Oct 2022.",
+        defaultOpen: true,
+      },
+      {
+        id: "findings",
+        title: "Findings (14 analytes)",
+        icon: TestTube,
+        tone: "lilac",
+        summary:
+          "Glucose 92, eGFR >90, Albumin 4.4, ALT 22 — full panel inside.",
+        labRows: [
+          { name: "Glucose", value: "92", unit: "mg/dL", refRange: "70 – 99", flag: "normal" },
+          { name: "Calcium", value: "9.4", unit: "mg/dL", refRange: "8.6 – 10.3", flag: "normal" },
+          { name: "Sodium", value: "140", unit: "mmol/L", refRange: "136 – 145", flag: "normal" },
+          { name: "Potassium", value: "4.2", unit: "mmol/L", refRange: "3.5 – 5.1", flag: "normal" },
+          { name: "Chloride", value: "102", unit: "mmol/L", refRange: "98 – 107", flag: "normal" },
+          { name: "CO2 (Bicarbonate)", value: "25", unit: "mmol/L", refRange: "22 – 29", flag: "normal" },
+          { name: "BUN", value: "14", unit: "mg/dL", refRange: "7 – 20", flag: "normal" },
+          { name: "Creatinine", value: "0.9", unit: "mg/dL", refRange: "0.6 – 1.2", flag: "normal" },
+          { name: "eGFR", value: ">90", unit: "mL/min/1.73m²", refRange: "≥ 60", flag: "normal" },
+          { name: "Albumin", value: "4.4", unit: "g/dL", refRange: "3.5 – 5.0", flag: "normal" },
+          { name: "Total Protein", value: "7.2", unit: "g/dL", refRange: "6.0 – 8.3", flag: "normal" },
+          { name: "Total Bilirubin", value: "0.7", unit: "mg/dL", refRange: "0.1 – 1.2", flag: "normal" },
+          { name: "Alkaline Phosphatase", value: "78", unit: "U/L", refRange: "44 – 147", flag: "normal" },
+          { name: "ALT", value: "22", unit: "U/L", refRange: "7 – 56", flag: "normal" },
+          { name: "AST", value: "24", unit: "U/L", refRange: "10 – 40", flag: "normal" },
+        ],
+      },
+      {
+        id: "out-of-range",
+        title: "Out-of-Range Markers",
+        icon: AlertTriangle,
+        tone: "mint",
+        summary: "None. Every analyte is within its reference window.",
+        body:
+          "Zero analytes flagged. All values sit comfortably within their reference windows; no marker requires repeat testing or interval monitoring.",
+      },
+      {
+        id: "trends",
+        title: "Year-over-Year Trends",
+        icon: TrendingUp,
+        tone: "lilac",
+        summary:
+          "Glucose, creatinine, and liver markers stable vs Oct 2022.",
+        bullets: [
+          "Glucose: 95 (Oct 2022) → 92 (Oct 2023). Stable; both mid-range.",
+          "Creatinine: 0.9 → 0.9. Stable renal filtration (eGFR >90 both years).",
+          "ALT: 26 → 22, AST: 27 → 24. Within assay variability — no meaningful change.",
+          "Electrolytes (Na/K/Cl/CO2): unchanged within ±1 unit. No trend.",
+        ],
+      },
+      {
+        id: "recommendations",
+        title: "Doctor's Recommendations",
+        icon: Sparkles,
+        tone: "lilac",
+        summary:
+          "Within normal limits. Pair with HbA1c + lipid panel at next annual.",
+        items: [
+          "CMP within normal limits — no acute follow-up needed.",
+          "At next annual: pair CMP with HbA1c (diabetes screen, last value not on file) and a fasting lipid panel for a full cardiometabolic baseline.",
+          "Maintain hydration (~2L/day) — keeps the BUN/creatinine ratio stable; current ratio of 15.6 is normal but consistent hydration before draws makes trends easier to interpret.",
+          "No medication changes indicated. Re-test sooner only if new symptoms emerge (persistent fatigue, polyuria, right-upper-quadrant pain, edema).",
+        ],
+        defaultOpen: true,
+      },
+      {
+        id: "follow-up",
+        title: "Follow-up",
+        icon: Calendar,
+        tone: "mint",
+        summary: "No clinical follow-up required. Re-test in 12 months.",
+      },
     ],
   },
   {
@@ -151,7 +259,7 @@ const ENTRIES: TimelineEntry[] = [
     date: "SEP 15, 2023",
     title: "Dermatology Consultation",
     description:
-      "Routine mole mapping and skin check with Dr. Peterson. Prescribed topical cream for mild eczema on left elbow. Follow-up recommended in 12 months.",
+      "Routine 30-min skin check with Dr. Peterson (UCSF Dermatology). Mole mapping + targeted exam for left-elbow rash flagged by patient.",
     icon: Stethoscope,
     tone: "lilac-dark",
     badge: { label: "Specialist Visit", tone: "lilac" },
@@ -162,6 +270,105 @@ const ENTRIES: TimelineEntry[] = [
     scans: [
       { name: "Skin_Map_Elbow.jpg", type: "image" },
       { name: "Dermascope_Mole_L7.jpg", type: "image" },
+    ],
+    sections: [
+      {
+        id: "chart-review",
+        title: "Chart Reviewed at Visit",
+        icon: ClipboardList,
+        tone: "lilac",
+        summary:
+          "Allergies: NKDA. Meds: sumatriptan 50mg PRN. Vitals: BP 118/74, HR 68.",
+        bullets: [
+          "Allergies: NKDA (no known drug allergies).",
+          "Current medications: sumatriptan 50mg PO PRN (migraine).",
+          "Vitals: BP 118/74 mmHg, HR 68 bpm, Temp 98.4°F.",
+          "Atopic history at visit: childhood eczema (resolved), seasonal allergic rhinitis. No personal asthma. Family history not on file at this visit.",
+        ],
+      },
+      {
+        id: "hpi",
+        title: "History of Present Illness",
+        icon: History,
+        tone: "lilac",
+        summary:
+          "3-week history of itchy, scaly patch on left elbow. No systemic symptoms.",
+        body:
+          "Patient reports a persistent itchy, scaly patch on the inner left elbow for approximately 3 weeks. Onset coincided with seasonal weather change. Mild-to-moderate itching, no burning, no spread to other sites. No fevers, no joint involvement, no new exposures (no new soaps, detergents, or jewelry).",
+        defaultOpen: true,
+      },
+      {
+        id: "symptoms",
+        title: "Reported Symptoms",
+        icon: Thermometer,
+        tone: "amber",
+        summary:
+          "Itchy, dry, scaly skin on left elbow. Worse in evenings; no oozing.",
+        bullets: [
+          "Itching: mild-to-moderate, worse in evenings.",
+          "Dryness and fine scale, ~2cm × 3cm patch.",
+          "No oozing, weeping, or bleeding.",
+          "No fever, joint pain, or systemic symptoms.",
+        ],
+      },
+      {
+        id: "exam",
+        title: "Physical Examination",
+        icon: Heart,
+        tone: "lilac",
+        summary:
+          "Erythematous, scaly plaque with excoriations on left antecubital fossa. No nail/scalp involvement.",
+        body:
+          "Full-body skin survey performed under dermatoscope.\n\n• Left antecubital fossa: ~2.5 × 3 cm ill-defined erythematous plaque with fine scale and linear excoriations. No vesicles, no exudate, no lichenification.\n• Mole mapping: 14 nevi catalogued, all benign-appearing. One mole (L7, left upper back) photographed via dermatoscope for baseline; symmetric, well-bordered, uniform color.\n• Nails, scalp, palms, soles: unremarkable.",
+      },
+      {
+        id: "assessment",
+        title: "Assessment",
+        icon: ClipboardCheck,
+        tone: "lilac-dark",
+        summary:
+          "Mild atopic dermatitis (eczema), flexural distribution. Benign nevi otherwise.",
+        body:
+          "Working diagnosis: localized atopic dermatitis (mild), flexural distribution, likely xerosis- and seasonal-triggered, consistent with the patient's childhood eczema and allergic rhinitis history. Differential includes irritant/contact dermatitis and nummular eczema; family atopy history to be reviewed at follow-up. No features of psoriasis, tinea, or scabies. Mole mapping unremarkable; mole L7 to be monitored at 12-month intervals.",
+      },
+      {
+        id: "plan",
+        title: "Plan",
+        icon: Target,
+        tone: "mint",
+        summary:
+          "Topical hydrocortisone 1% twice daily (BID) up to 14 days + soak-and-seal emollient routine.",
+        items: [
+          "Apply hydrocortisone 1% cream to the affected area twice daily for up to 14 days; stop sooner once clear.",
+          "Apply a thick emollient (CeraVe Cream or Vanicream) within 3 minutes of bathing while skin is still damp (\"soak and seal\"), and reapply at least once more daily.",
+          "Take short, lukewarm (not hot) showers with a gentle non-soap cleanser; pat dry rather than rub.",
+          "Stop hydrocortisone after 14 days even if not fully resolved, and contact clinic — prolonged use on flexural thin skin risks atrophy and striae.",
+        ],
+      },
+      {
+        id: "follow-up",
+        title: "Follow-up",
+        icon: Calendar,
+        tone: "lilac",
+        summary:
+          "Mole-mapping recheck in 12 months. Sooner if eczema worsens or new lesions appear.",
+        body:
+          "Routine 12-month follow-up scheduled for September 2024 for repeat mole mapping. Patient to contact clinic sooner if: eczema patch spreads, develops oozing/crusting, or fails to improve after 2 weeks of hydrocortisone.",
+      },
+      {
+        id: "recommendations",
+        title: "Preventive Guidance",
+        icon: Sparkles,
+        tone: "lilac",
+        summary:
+          "Daily SPF, monthly self-checks of mole L7, avoid known eczema triggers.",
+        items: [
+          "Apply broad-spectrum SPF 30+ daily, especially to face, neck, and any sun-exposed nevi.",
+          "Avoid known eczema triggers: long hot showers, harsh soaps, fragrance, wool fabrics on bare skin.",
+          "Self-check mole L7 (left upper back) monthly against the baseline dermatoscope photo; clinician re-photograph at the 12-month visit, or sooner if asymmetry, border change, color change, diameter >6mm, or evolution is noted.",
+        ],
+        defaultOpen: true,
+      },
     ],
   },
   {
@@ -214,6 +421,87 @@ const ENTRIES: TimelineEntry[] = [
     icon: AlertTriangle,
     tone: "coral",
     badge: { label: "Self-Reported", tone: "coral" },
+    sections: [
+      {
+        id: "what-happened",
+        title: "What Happened",
+        icon: ScrollText,
+        tone: "coral",
+        summary:
+          "Severe right-sided throbbing headache with visual aura, ~4 hours, started 7:20pm Aug 2.",
+        body:
+          "Onset around 7:20pm on Aug 2. Began with ~20min of visual aura (shimmering zig-zag in right peripheral vision), followed by severe throbbing pain on the right side of the head behind the eye. Accompanied by photophobia, mild nausea (no vomiting), and sound sensitivity. Pain peaked at ~8/10 around 9pm. Pain worsened with walking/stairs, prompting bed rest.",
+        defaultOpen: true,
+      },
+      {
+        id: "triggers",
+        title: "Suspected Triggers",
+        icon: AlertTriangle,
+        tone: "amber",
+        summary:
+          "5h sleep prior night + high-stress workday. Consistent with prior migraine pattern.",
+        bullets: [
+          "Sleep: only 5h on Aug 1 → Aug 2 (vs 7.4h baseline).",
+          "Stress: high-pressure deadline at work all day Aug 2.",
+          "Hydration: ~1L water consumed (below typical ~2L).",
+          "No new foods, no alcohol, no caffeine change vs baseline. Hormonal/cycle correlation not assessed in this entry.",
+        ],
+      },
+      {
+        id: "treatment",
+        title: "Treatment Taken",
+        icon: ListChecks,
+        tone: "lilac",
+        summary:
+          "Sumatriptan 50mg by mouth (PO) at onset of pain phase. Rested in dark room.",
+        items: [
+          "Took prescribed sumatriptan 50mg by mouth (PO) at ~7:45pm (within 25min of pain onset).",
+          "Moved to dark, quiet bedroom; eye mask + cold compress.",
+          "Hydrated with ~500ml water + electrolyte mix.",
+          "Single 50mg dose was sufficient; per sumatriptan labeling a second 50–100mg dose is allowed after ≥2h if pain recurs (max 200mg/24h) — not needed this episode.",
+          "Note for chart: triptan use assumes typical visual aura and no cardiovascular contraindications; re-evaluate if aura ever includes motor weakness, brainstem symptoms, or deficits lasting >60 minutes.",
+        ],
+      },
+      {
+        id: "resolution",
+        title: "Resolution",
+        icon: CheckCircle2,
+        tone: "mint",
+        summary:
+          "Pain resolved by ~11:30pm Aug 2. Residual fatigue through Aug 3 morning.",
+        body:
+          "Pain tapered from 8/10 at 9pm to 2/10 by 11pm and fully resolved by ~11:30pm after ~4 hours total. Slept 9h overnight. Woke Aug 3 with residual fatigue + mild brain fog (postdrome); resolved by mid-afternoon. No recurrence in following 10 days.",
+      },
+      {
+        id: "red-flags",
+        title: "When to Seek Emergency Care",
+        icon: AlertTriangle,
+        tone: "coral",
+        summary:
+          "Seek ER care if a future headache feels fundamentally different from your usual migraine.",
+        bullets: [
+          "Sudden \"thunderclap\" onset (peak severity in <1 minute) or \"worst headache of life.\"",
+          "New focal neurological deficits: weakness, numbness, speech difficulty, or aura lasting >60 minutes.",
+          "Fever, neck stiffness, confusion, or headache after head trauma.",
+          "First severe headache after age 50, or a clear change in your usual migraine pattern.",
+        ],
+        defaultOpen: true,
+      },
+      {
+        id: "recommendations",
+        title: "Zoe's Recommendations",
+        icon: Sparkles,
+        tone: "lilac",
+        summary:
+          "Prioritize sleep ≥7h on high-stress days. Raise to PCP if ≥4 headache days/month.",
+        items: [
+          "Treat 7h+ sleep as non-negotiable on days with known work-stress peaks.",
+          "Keep sumatriptan within reach; the early-onset dose appears to have shortened this episode.",
+          "Log future migraines (date, sleep, stress, hydration, aura features — visual / sensory / aphasic) so we can spot patterns.",
+          "If migraines occur ≥4 headache days per month — or any month with significant disability despite triptan use — raise it at your next PCP visit; this is the American Headache Society threshold where preventive therapy is typically discussed.",
+        ],
+      },
+    ],
   },
   {
     id: "checkin-jul28",
