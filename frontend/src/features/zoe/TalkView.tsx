@@ -41,9 +41,12 @@ export function TalkView({
   pendingQuestion,
   onPendingConsumed,
 }: TalkViewProps) {
+  const [mode, setMode] = useState<OrbMode>("daily");
   return (
-    <ZoeAssistantProvider tone={tone}>
+    <ZoeAssistantProvider tone={tone} key={mode}>
       <TalkScene
+        mode={mode}
+        onModeChange={setMode}
         pendingQuestion={pendingQuestion}
         onPendingConsumed={onPendingConsumed}
       />
@@ -52,14 +55,17 @@ export function TalkView({
 }
 
 function TalkScene({
+  mode,
+  onModeChange,
   pendingQuestion,
   onPendingConsumed,
 }: {
+  mode: OrbMode;
+  onModeChange: (m: OrbMode) => void;
   pendingQuestion?: string | null;
   onPendingConsumed?: () => void;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
-  const [mode, setMode] = useState<OrbMode>("daily");
   const aui = useAui();
   const {
     recording,
@@ -69,16 +75,7 @@ function TalkScene({
     error,
     onOrbTap,
     saveTranscript,
-    resetVisit,
   } = useInterpreterOrb(mode);
-
-  // Mode-switch hygiene: drop visit-session state when leaving Visit mode.
-  useEffect(() => {
-    if (mode === "daily" && turnCount > 0) {
-      resetVisit();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
 
   // Route external pending questions (e.g. suggestion pills) into the thread.
   const dispatchedRef = useRef<string | null>(null);
@@ -100,7 +97,7 @@ function TalkScene({
       style={{ ["--composer-radius" as string]: "20px" }}
     >
       <section className="flex flex-1 min-w-0 flex-col">
-        <ModeSwitcher mode={mode} onChange={setMode} />
+        <ModeSwitcher mode={mode} onChange={onModeChange} />
         <TalkHero
           mode={mode}
           recording={recording}

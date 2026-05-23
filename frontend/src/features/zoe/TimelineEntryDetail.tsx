@@ -10,7 +10,6 @@ import {
   Eye,
   FileText,
   ImageIcon,
-  Paperclip,
   Sparkles,
   X,
 } from "lucide-react";

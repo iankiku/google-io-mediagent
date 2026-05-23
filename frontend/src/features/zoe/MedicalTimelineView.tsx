@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Briefcase,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   ClipboardList,
-  Eye,
   FileText,
   Info,
   MessageCircle,
+  Moon,
   Paperclip,
   Sparkles,
   Stethoscope,
@@ -19,18 +18,25 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AskContext } from "./AskZoePopup";
+import {
+  TimelineEntryDetail,
+  type EntryTone,
+  type LabResult,
+  type ScanItem,
+} from "./TimelineEntryDetail";
 
 interface MedicalTimelineViewProps {
   onImportData: () => void;
   onAskAbout: (ctx: AskContext) => void;
 }
 
-type EntryTone = "lilac" | "mint" | "lilac-dark" | "amber" | "coral";
 type EntryTier = "primary" | "sub";
+type EntrySource = "self" | "agent" | "clinical";
 
 interface TimelineEntry {
   id: string;
   tier: EntryTier;
+  source?: EntrySource;
   date: string;
   title: string;
   description: string;
@@ -47,6 +53,8 @@ interface TimelineEntry {
   hasClinicalNotes?: boolean;
   /** Sub-tier entries are nested under the closest preceding primary entry. */
   parentId?: string;
+  labResults?: LabResult[];
+  scans?: ScanItem[];
 }
 
 const HEALTH_SUMMARY = {
@@ -76,19 +84,66 @@ const ENTRIES: TimelineEntry[] = [
       "No markers outside normal range. Glucose levels are stable compared to previous year.",
     attachedDocsLabel: "CMP_Results_Oct23.pdf",
     showViewPdf: true,
+    labResults: [
+      { name: "Glucose", value: "92", unit: "mg/dL", refRange: "70 – 99", flag: "normal" },
+      { name: "Calcium", value: "9.4", unit: "mg/dL", refRange: "8.6 – 10.3", flag: "normal" },
+      { name: "Sodium", value: "140", unit: "mmol/L", refRange: "136 – 145", flag: "normal" },
+      { name: "Potassium", value: "4.2", unit: "mmol/L", refRange: "3.5 – 5.1", flag: "normal" },
+      { name: "Chloride", value: "102", unit: "mmol/L", refRange: "98 – 107", flag: "normal" },
+      { name: "BUN", value: "14", unit: "mg/dL", refRange: "7 – 20", flag: "normal" },
+      { name: "Creatinine", value: "0.9", unit: "mg/dL", refRange: "0.6 – 1.2", flag: "normal" },
+      { name: "ALT", value: "22", unit: "U/L", refRange: "7 – 56", flag: "normal" },
+      { name: "AST", value: "24", unit: "U/L", refRange: "10 – 40", flag: "normal" },
+    ],
+  },
+  {
+    id: "checkin-oct18",
+    tier: "sub",
+    parentId: "cmp",
+    source: "agent",
+    date: "Oct 18, 2023",
+    title: "Zoe weekly check-in",
+    description:
+      "Sleep stable at 7.2h avg, no symptoms reported. HRV trending up. No follow-up needed.",
+    icon: Sparkles,
+    tone: "lilac",
   },
   {
     id: "symptom-knee",
     tier: "sub",
     parentId: "cmp",
+    source: "self",
     date: "Oct 10 – Oct 12, 2023",
     title: "Joint pain (self-reported)",
     description:
       "Mild aching in right knee after morning runs. Applied ice. Resolved without intervention.",
     icon: ClipboardList,
     tone: "amber",
-    collapsible: true,
     attachments: [{ name: "Run_Log.txt", type: "pdf" }],
+  },
+  {
+    id: "checkin-oct03",
+    tier: "sub",
+    parentId: "cmp",
+    source: "agent",
+    date: "Oct 03, 2023",
+    title: "Zoe weekly check-in",
+    description:
+      "Knee pain resolved per your reports. Running cadence back to baseline. Flagged for follow-up at next visit if recurs.",
+    icon: Sparkles,
+    tone: "lilac",
+  },
+  {
+    id: "checkin-sep22",
+    tier: "sub",
+    parentId: "cmp",
+    source: "agent",
+    date: "Sep 22, 2023",
+    title: "Zoe medication adherence check",
+    description:
+      "Eczema cream application: 6/7 days confirmed. Reminder pinged on the missed evening.",
+    icon: Activity,
+    tone: "mint",
   },
   {
     id: "derm",
@@ -104,11 +159,52 @@ const ENTRIES: TimelineEntry[] = [
       "Eczema is common and localized. Monitoring required if redness spreads or itching increases.",
     attachedImagesLabel: "Skin_Map_Elbow.jpg",
     hasClinicalNotes: true,
+    scans: [
+      { name: "Skin_Map_Elbow.jpg", type: "image" },
+      { name: "Dermascope_Mole_L7.jpg", type: "image" },
+    ],
+  },
+  {
+    id: "checkin-sep08",
+    tier: "sub",
+    parentId: "derm",
+    source: "agent",
+    date: "Sep 08, 2023",
+    title: "Zoe post-visit follow-up",
+    description:
+      "Checked in on derm consult plan. Eczema application started day 1. No new symptoms.",
+    icon: Sparkles,
+    tone: "lilac",
+  },
+  {
+    id: "symptom-sleep",
+    tier: "sub",
+    parentId: "derm",
+    source: "self",
+    date: "Aug 22 – Aug 23, 2023",
+    title: "Sleep disruption (self-reported)",
+    description:
+      "Two nights of insomnia after long work day. No accompanying symptoms. Resolved by Aug 24.",
+    icon: Moon,
+    tone: "amber",
+  },
+  {
+    id: "checkin-aug12",
+    tier: "sub",
+    parentId: "derm",
+    source: "agent",
+    date: "Aug 12, 2023",
+    title: "Zoe migraine follow-up",
+    description:
+      "10 days post-migraine: no recurrence. Sleep + stress markers normalized. No further action required.",
+    icon: Sparkles,
+    tone: "lilac",
   },
   {
     id: "migraine",
     tier: "sub",
     parentId: "derm",
+    source: "self",
     date: "Aug 02 – Aug 03, 2023",
     title: "Migraine episode (self-reported)",
     description:
@@ -118,7 +214,17 @@ const ENTRIES: TimelineEntry[] = [
     icon: AlertTriangle,
     tone: "coral",
     badge: { label: "Self-Reported", tone: "coral" },
-    collapsible: true,
+  },
+  {
+    id: "checkin-jul28",
+    tier: "sub",
+    source: "agent",
+    date: "Jul 28, 2023",
+    title: "Zoe weekly check-in",
+    description:
+      "Baseline week: no symptoms, sleep avg 7.4h, HRV 64ms. Migraine-trigger awareness reminder sent.",
+    icon: Sparkles,
+    tone: "lilac",
   },
 ];
 
@@ -126,6 +232,10 @@ export function MedicalTimelineView({
   onImportData,
   onAskAbout,
 }: MedicalTimelineViewProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedEntry =
+    ENTRIES.find((e) => e.id === selectedId) ?? null;
+
   return (
     <div className="h-full overflow-y-auto zoe-scroll">
       <div className="px-8 lg:px-12 py-8 mx-auto max-w-[1100px]">
@@ -159,12 +269,22 @@ export function MedicalTimelineView({
           <span className="h-px flex-1 bg-foreground/8" />
         </div>
 
-        <Timeline entries={ENTRIES} onAskAbout={onAskAbout} />
+        <Timeline
+          entries={ENTRIES}
+          onAskAbout={onAskAbout}
+          onSelect={setSelectedId}
+        />
 
         <div className="text-center text-xs text-muted-foreground mt-10 mb-4">
           ··· End of available records
         </div>
       </div>
+
+      <TimelineEntryDetail
+        entry={selectedEntry}
+        onClose={() => setSelectedId(null)}
+        onAskAbout={onAskAbout}
+      />
     </div>
   );
 }
@@ -254,9 +374,11 @@ function HealthSummaryModule() {
 function Timeline({
   entries,
   onAskAbout,
+  onSelect,
 }: {
   entries: TimelineEntry[];
   onAskAbout: (ctx: AskContext) => void;
+  onSelect: (id: string) => void;
 }) {
   return (
     <div className="relative pl-12">
@@ -269,9 +391,18 @@ function Timeline({
       <div className="space-y-6">
         {entries.map((entry) =>
           entry.tier === "primary" ? (
-            <PrimaryRow key={entry.id} entry={entry} onAskAbout={onAskAbout} />
+            <PrimaryRow
+              key={entry.id}
+              entry={entry}
+              onAskAbout={onAskAbout}
+              onSelect={() => onSelect(entry.id)}
+            />
           ) : (
-            <SubRow key={entry.id} entry={entry} />
+            <SubRow
+              key={entry.id}
+              entry={entry}
+              onSelect={() => onSelect(entry.id)}
+            />
           )
         )}
       </div>
@@ -282,11 +413,12 @@ function Timeline({
 function PrimaryRow({
   entry,
   onAskAbout,
+  onSelect,
 }: {
   entry: TimelineEntry;
   onAskAbout: (ctx: AskContext) => void;
+  onSelect: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const Icon = entry.icon;
 
   return (
@@ -294,7 +426,7 @@ function PrimaryRow({
       {/* Dot marker */}
       <div
         className={cn(
-          "absolute -left-12 top-3 w-9 h-9 rounded-full flex items-center justify-center ring-4 ring-background",
+          "absolute -left-12 top-3 w-9 h-9 rounded-full flex items-center justify-center ring-4 ring-background pointer-events-none",
           toneToBg(entry.tone),
           toneToText(entry.tone)
         )}
@@ -302,7 +434,12 @@ function PrimaryRow({
         <Icon className="w-4 h-4" />
       </div>
 
-      <div className="rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_2px_rgba(20,20,40,0.03),0_2px_12px_-6px_rgba(20,20,40,0.06)] p-5">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`Open ${entry.title} detail`}
+        className="group w-full text-left rounded-2xl bg-card ring-1 ring-foreground/5 shadow-[0_1px_2px_rgba(20,20,40,0.03),0_2px_12px_-6px_rgba(20,20,40,0.06)] p-5 transition-all hover:-translate-y-0.5 hover:ring-foreground/10 hover:shadow-[0_4px_18px_-4px_rgba(20,20,40,0.10)] outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+      >
         {/* Header row */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -329,120 +466,70 @@ function PrimaryRow({
                 {entry.badge.label}
               </span>
             )}
-            {entry.collapsible && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="w-7 h-7 rounded-lg hover:bg-muted text-foreground/60 hover:text-foreground transition-colors flex items-center justify-center"
-                aria-label={expanded ? "Collapse" : "Expand"}
-              >
-                {expanded ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-            )}
-            {entry.attachments && entry.attachments.length > 0 && (
+            {entry.labResults && entry.labResults.length > 0 && (
               <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/60 ring-1 ring-foreground/5 rounded-full h-6 px-2.5">
-                <Paperclip className="w-3 h-3" />
-                {entry.attachments.length} File
+                <TestTube className="w-3 h-3" />
+                {entry.labResults.length}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() =>
+            {entry.scans && entry.scans.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/60 ring-1 ring-foreground/5 rounded-full h-6 px-2.5">
+                <Paperclip className="w-3 h-3" />
+                {entry.scans.length}
+              </span>
+            )}
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
                 onAskAbout({
                   label: entry.title,
                   prompt: `Walk me through this entry from ${entry.date}: ${entry.title}. What's clinically relevant for my next visit?`,
                   surface: "timeline",
-                })
-              }
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAskAbout({
+                    label: entry.title,
+                    prompt: `Walk me through this entry from ${entry.date}: ${entry.title}. What's clinically relevant for my next visit?`,
+                    surface: "timeline",
+                  });
+                }
+              }}
               aria-label={`Ask Zoe about ${entry.title}`}
-              className="w-7 h-7 rounded-lg bg-muted/60 hover:bg-[color:var(--zoe-lilac-soft)] text-foreground/60 hover:text-[color:var(--zoe-lilac)] transition-colors flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--zoe-lilac)]/40"
+              className="w-7 h-7 rounded-lg bg-muted/60 hover:bg-[color:var(--zoe-lilac-soft)] text-foreground/60 hover:text-[color:var(--zoe-lilac)] transition-colors flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--zoe-lilac)]/40 cursor-pointer"
               title="Ask Zoe about this"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-            </button>
+            </span>
           </div>
         </div>
 
         {/* Body */}
-        <p className="text-sm text-foreground/80 leading-relaxed mt-3 whitespace-pre-line">
-          {!entry.collapsible || expanded
-            ? entry.expandedDescription ?? entry.description
-            : entry.description}
+        <p className="text-sm text-foreground/80 leading-relaxed mt-3">
+          {entry.description}
         </p>
 
-        {/* AI Takeaway / Attachments grid */}
-        {(entry.aiTakeaway || entry.attachedDocsLabel || entry.attachedImagesLabel) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-            {entry.aiTakeaway && (
-              <div className="rounded-xl bg-muted/50 ring-1 ring-foreground/5 px-3.5 py-3">
-                <p className="text-[11px] font-semibold text-foreground/70 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3" />
-                  {entry.id === "derm" ? "AI Analysis" : "AI Key Takeaway"}
-                </p>
-                <p className="text-xs text-foreground/75 mt-1.5 leading-relaxed">
-                  {entry.aiTakeaway}
-                </p>
-              </div>
-            )}
-            {(entry.attachedDocsLabel || entry.attachedImagesLabel) && (
-              <div className="rounded-xl bg-muted/50 ring-1 ring-foreground/5 px-3.5 py-3">
-                <p className="text-[11px] font-semibold text-foreground/70 flex items-center gap-1.5">
-                  <Paperclip className="w-3 h-3" />
-                  {entry.attachedImagesLabel ? "Attached Images" : "Attached Documents"}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    alert(
-                      `Opening ${entry.attachedImagesLabel ?? entry.attachedDocsLabel}…`
-                    )
-                  }
-                  className="text-xs text-[color:var(--zoe-lilac)] hover:underline mt-1.5 flex items-center gap-1.5"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  {entry.attachedImagesLabel ?? entry.attachedDocsLabel}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Action row */}
-        {(entry.showViewPdf || entry.hasClinicalNotes) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {entry.showViewPdf && (
-              <button
-                type="button"
-                onClick={() => alert("Opening PDF…")}
-                className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                View Full Report
-              </button>
-            )}
-            {entry.hasClinicalNotes && (
-              <button
-                type="button"
-                onClick={() => alert("Opening clinical notes…")}
-                className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-card ring-1 ring-foreground/10 text-xs font-semibold hover:bg-muted transition-colors"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                Clinical Notes
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+        {/* Hint */}
+        <p className="mt-3 text-[11px] uppercase tracking-[0.14em] font-semibold text-muted-foreground/70 group-hover:text-[color:var(--zoe-lilac)] transition-colors">
+          Open full visit ↗
+        </p>
+      </button>
     </div>
   );
 }
 
-function SubRow({ entry }: { entry: TimelineEntry }) {
-  const [expanded, setExpanded] = useState(false);
+function SubRow({
+  entry,
+  onSelect,
+}: {
+  entry: TimelineEntry;
+  onSelect: () => void;
+}) {
   const Icon = entry.icon;
 
   return (
@@ -455,16 +542,32 @@ function SubRow({ entry }: { entry: TimelineEntry }) {
       {/* Outlined sub-dot */}
       <div
         className={cn(
-          "absolute -left-[36px] top-1.5 w-5 h-5 rounded-full bg-background ring-2 flex items-center justify-center",
+          "absolute -left-[36px] top-1.5 w-5 h-5 rounded-full bg-background ring-2 flex items-center justify-center pointer-events-none",
           toneToRing(entry.tone)
         )}
       >
         <Icon className={cn("w-2.5 h-2.5", toneToText(entry.tone))} />
       </div>
 
-      {/* Sub content: no card, smaller type, muted */}
-      <div className="py-1">
+      {/* Sub content: no card, smaller type, muted; clickable */}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`Open ${entry.title} detail`}
+        className="w-full text-left py-1.5 rounded-lg hover:bg-muted/40 transition-colors px-2 -mx-2 outline-none focus-visible:ring-2 focus-visible:ring-foreground/15"
+      >
         <div className="flex items-center gap-2 flex-wrap">
+          {entry.source === "agent" && (
+            <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-[0.14em] font-semibold text-[color:var(--zoe-lilac)] bg-[color:var(--zoe-lilac-soft)] rounded-full px-1.5 py-0.5">
+              <Sparkles className="w-2.5 h-2.5" />
+              Zoe
+            </span>
+          )}
+          {entry.source === "self" && (
+            <span className="inline-flex items-center text-[9px] uppercase tracking-[0.14em] font-semibold text-foreground/60 bg-muted rounded-full px-1.5 py-0.5">
+              Self
+            </span>
+          )}
           <span className="text-[11px] text-muted-foreground">{entry.date}</span>
           <span aria-hidden className="text-muted-foreground/40">·</span>
           <h4 className="text-[13.5px] font-medium text-foreground/85">
@@ -476,27 +579,11 @@ function SubRow({ entry }: { entry: TimelineEntry }) {
               {entry.attachments[0].name}
             </span>
           )}
-          {entry.collapsible && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="ml-auto w-6 h-6 rounded-md hover:bg-muted text-foreground/50 hover:text-foreground transition-colors flex items-center justify-center"
-              aria-label={expanded ? "Collapse" : "Expand"}
-            >
-              {expanded ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-            </button>
-          )}
         </div>
         <p className="mt-1 text-[12.5px] text-foreground/65 leading-relaxed">
-          {!entry.collapsible || expanded
-            ? entry.expandedDescription ?? entry.description
-            : entry.description}
+          {entry.description}
         </p>
-      </div>
+      </button>
     </div>
   );
 }

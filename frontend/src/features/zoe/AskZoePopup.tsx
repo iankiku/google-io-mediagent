@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   AuiIf,
   ComposerPrimitive,
@@ -229,8 +229,8 @@ function PopupEmpty({ context }: { context: AskContext | null }) {
       <ZoeLogo size={56} />
       <p className="text-sm font-medium">Ask me anything</p>
       <p className="text-xs text-muted-foreground max-w-[260px]">
-        Trends, your latest labs, a symptom you're tracking — I'll pull the
-        relevant record and walk you through it.
+        Trends, your latest labs, a symptom you&apos;re tracking — I&apos;ll
+        pull the relevant record and walk you through it.
       </p>
     </div>
   );
