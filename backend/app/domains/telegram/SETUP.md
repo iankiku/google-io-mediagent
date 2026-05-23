@@ -1,6 +1,6 @@
 # Telegram Bot Setup Guide
 
-This guide shows how to turn this project into a real Telegram bot you can talk to.
+This guide shows how to run the Telegram domain bot in this repo.
 
 ## 1) Create the bot in Telegram
 
@@ -17,7 +17,7 @@ That token is required for this project.
 
 Open:
 
-`/Users/gobus/Desktop/main/projects/Google-IO/telegram-bot/.env`
+`/Users/gobus/Desktop/main/projects/Google-IO/google-io-mediagent/backend/app/domains/telegram/.env`
 
 Add or replace:
 
@@ -33,10 +33,10 @@ If you already have the Gemini key in there, just add the Telegram token.
 
 ## 3) Install dependencies
 
-From the project folder:
+From the telegram domain folder:
 
 ```bash
-cd /Users/gobus/Desktop/main/projects/Google-IO/telegram-bot
+cd /Users/gobus/Desktop/main/projects/Google-IO/google-io-mediagent/backend/app/domains/telegram
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -79,8 +79,6 @@ Examples:
 /callapi POST https://example.com/api {"name":"Ada","role":"tester"}
 ```
 
-If your friend hosts a FastAPI server, point the command at their URL.
-
 ## 7) Common problems
 
 ### Bot says it cannot connect
@@ -105,12 +103,3 @@ If your friend hosts a FastAPI server, point the command at their URL.
 - sends the result to Gemini for interpretation
 - replies back in Telegram
 - calls external HTTP APIs on command
-
-## 9) Next upgrades you might want
-
-- webhook deployment instead of polling
-- file summaries stored in a database
-- per-user memory
-- better command parsing
-- FastAPI tool integrations with auth headers
-- inline buttons for common API calls
