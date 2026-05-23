@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(16) NOT NULL DEFAULT 'en-US';
 
+-- Scheduler state: when did we last send a proactive ping, and how often should we?
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS last_checkin_at TIMESTAMP WITH TIME ZONE NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS checkin_cadence_hours INT NOT NULL DEFAULT 24;
+
 -- 2. User Medical Records Metadata
 CREATE TABLE IF NOT EXISTS user_medical_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

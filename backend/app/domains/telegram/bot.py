@@ -13,6 +13,19 @@ logger = logging.getLogger("health_assistant.telegram.bot")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = None
 
+SUPPORTED_INGEST_MIME_PREFIXES = ("image/",)
+SUPPORTED_INGEST_MIME_EXACT = {"application/pdf", "text/plain"}
+MAX_INGEST_BYTES = 10 * 1024 * 1024  # 10 MB — Gemini call gets unhappy past this
+
+
+def _is_ingestible(mime: str, size_bytes: int) -> tuple[bool, str]:
+    if size_bytes > MAX_INGEST_BYTES:
+        return False, f"file is {size_bytes // (1024*1024)} MB — I can only analyze up to {MAX_INGEST_BYTES // (1024*1024)} MB right now"
+    mime = (mime or "").lower()
+    if mime.startswith(SUPPORTED_INGEST_MIME_PREFIXES) or mime in SUPPORTED_INGEST_MIME_EXACT:
+        return True, ""
+    return False, f"I can't fully analyze `{mime or 'unknown'}` files yet — saving a copy so your clinician can review it"
+
 if BOT_TOKEN:
     try:
         bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
@@ -88,36 +101,51 @@ def init_bot_handlers():
     def handle_medical_file(message):
         tg_id = str(message.from_user.id)
         user = get_user_by_telegram_id(tg_id)
-        
+
         if not user:
             bot.reply_to(message, "Please register first by typing /start.")
             return
-            
-        bot.reply_to(message, "File received! 📥 Analyzing your medical document...")
-        
+
         file_id = None
         file_name = "uploaded_file"
         file_mime = "application/octet-stream"
-        
+        file_size = 0
+
         if message.content_type == 'document':
             file_id = message.document.file_id
-            file_name = message.document.file_name
-            file_mime = message.document.mime_type
+            file_name = message.document.file_name or file_name
+            file_mime = message.document.mime_type or file_mime
+            file_size = message.document.file_size or 0
         elif message.content_type == 'photo':
             file_id = message.photo[-1].file_id
             file_name = f"photo_{file_id[:8]}.jpg"
             file_mime = "image/jpeg"
-            
+            file_size = message.photo[-1].file_size or 0
+
         if not file_id:
             bot.reply_to(message, "Failed to retrieve the file identifier.")
             return
-            
+
+        ingestible, reason = _is_ingestible(file_mime, file_size)
+
+        if ingestible:
+            bot.reply_to(message, "File received! 📥 Analyzing your medical document...")
+        else:
+            bot.reply_to(message, f"File received 📥 — {reason}.")
+
         try:
             file_info = bot.get_file(file_id)
             downloaded_file = bot.download_file(file_info.file_path)
 
             safe_filename = f"{uuid.uuid4()}{os.path.splitext(file_name)[1]}"
             save_path = upload_file(downloaded_file, safe_filename, file_mime)
+
+            if not ingestible:
+                bot.send_message(
+                    message.chat.id,
+                    f"✅ '{file_name}' saved to your record. I'll skip auto-analysis for this one for now."
+                )
+                return
 
             record_id = ingest_medical_record(
                 user_id=str(user["id"]),
@@ -126,7 +154,7 @@ def init_bot_handlers():
                 file_type=file_mime,
                 file_save_path=save_path
             )
-            
+
             markup = tg_types.InlineKeyboardMarkup()
             markup.add(
                 tg_types.InlineKeyboardButton("Explain 📖", callback_data=f"explain:{record_id}"),
@@ -141,8 +169,20 @@ def init_bot_handlers():
             logger.error(f"Telegram file ingestion failed: {str(e)}")
             bot.send_message(
                 message.chat.id,
-                f"❌ Failed to process the document. Error: {str(e)}"
+                "❌ I couldn't analyze that file, but I've kept a copy. Try sending a photo of the document instead, or a PDF under 10 MB."
             )
+
+    @bot.message_handler(content_types=['voice', 'audio', 'video', 'video_note', 'animation', 'sticker'])
+    def handle_unsupported_media(message):
+        tg_id = str(message.from_user.id)
+        user = get_user_by_telegram_id(tg_id)
+        if not user:
+            bot.reply_to(message, "Please register first by typing /start.")
+            return
+        bot.reply_to(
+            message,
+            "Thanks — I can't process audio or video yet. Please send a photo of the document, a PDF, or describe it in text."
+        )
 
     @bot.callback_query_handler(func=lambda call: True)
     def handle_callback(call):
