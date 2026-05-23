@@ -1,11 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
 
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-const config = new pulumi.Config();
 const gcpConfig = new pulumi.Config("gcp");
 const appConfig = new pulumi.Config("mediagent");
 
@@ -15,19 +10,20 @@ const stack = pulumi.getStack();
 
 const geminiApiKey = appConfig.requireSecret("geminiApiKey");
 const postgresPassword = appConfig.requireSecret("postgresPassword");
-const telegramBotToken = appConfig.requireSecret("telegramBotToken");
+const telegramBotToken = appConfig.getSecret("telegramBotToken") ?? "";
 
 // ---------------------------------------------------------------------------
 // Enable required GCP APIs
 // ---------------------------------------------------------------------------
 
-const enabledApis = [
+const apiServices = [
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "artifactregistry.googleapis.com",
     "storage.googleapis.com",
-    "iam.googleapis.com",
-].map(
+];
+
+const enabledApis = apiServices.map(
     (api) =>
         new gcp.projects.Service(`enable-${api}`, {
             project,
@@ -37,7 +33,7 @@ const enabledApis = [
 );
 
 // ---------------------------------------------------------------------------
-// 1. Google Cloud Storage bucket — medical file uploads
+// 1. Google Cloud Storage — medical file uploads
 // ---------------------------------------------------------------------------
 
 const uploadsBucket = new gcp.storage.Bucket("uploads-bucket", {
@@ -45,11 +41,11 @@ const uploadsBucket = new gcp.storage.Bucket("uploads-bucket", {
     location: region,
     project,
     uniformBucketLevelAccess: true,
-    forceDestroy: true, // hackathon convenience
+    forceDestroy: true,
 });
 
 // ---------------------------------------------------------------------------
-// 2. Cloud SQL PostgreSQL instance — with pgvector
+// 2. Cloud SQL PostgreSQL — pgvector enabled
 // ---------------------------------------------------------------------------
 
 const sqlInstance = new gcp.sql.DatabaseInstance(
@@ -59,22 +55,16 @@ const sqlInstance = new gcp.sql.DatabaseInstance(
         project,
         region,
         databaseVersion: "POSTGRES_15",
-        deletionProtection: false, // hackathon convenience
+        deletionProtection: false,
         settings: {
             tier: "db-f1-micro",
             databaseFlags: [
-                {
-                    name: "cloudsql.enable_pgvector",
-                    value: "on",
-                },
+                { name: "cloudsql.enable_pgvector", value: "on" },
             ],
             ipConfiguration: {
                 ipv4Enabled: true,
                 authorizedNetworks: [
-                    {
-                        name: "allow-all",
-                        value: "0.0.0.0/0",
-                    },
+                    { name: "allow-all", value: "0.0.0.0/0" },
                 ],
             },
         },
@@ -95,12 +85,10 @@ const sqlUser = new gcp.sql.User("app-user", {
     project,
 });
 
-// Build the connection string from Cloud SQL outputs
 const postgresHost = sqlInstance.publicIpAddress;
-const postgresConnectionString = pulumi.interpolate`postgresql://mediagent:${postgresPassword}@${postgresHost}:5432/mediagent`;
 
 // ---------------------------------------------------------------------------
-// 3. Artifact Registry repository — Docker images
+// 3. Artifact Registry — Docker images
 // ---------------------------------------------------------------------------
 
 const artifactRepo = new gcp.artifactregistry.Repository(
@@ -110,7 +98,6 @@ const artifactRepo = new gcp.artifactregistry.Repository(
         project,
         location: region,
         format: "DOCKER",
-        description: "MediAgent container images",
     },
     { dependsOn: enabledApis },
 );
@@ -118,15 +105,30 @@ const artifactRepo = new gcp.artifactregistry.Repository(
 const artifactRegistryUrl = pulumi.interpolate`${region}-docker.pkg.dev/${project}/${artifactRepo.repositoryId}`;
 
 // ---------------------------------------------------------------------------
-// 4. Cloud Run service — Backend (FastAPI)
+// 4. Cloud Run — Backend (FastAPI + LangGraph + Telegram Bot)
 // ---------------------------------------------------------------------------
 
 const backendImage = pulumi.interpolate`${artifactRegistryUrl}/backend:latest`;
 
+const backendEnvs: gcp.types.input.cloudrunv2.ServiceTemplateContainerEnv[] = [
+    { name: "GEMINI_API_KEY", value: geminiApiKey },
+    { name: "POSTGRES_HOST", value: postgresHost },
+    { name: "POSTGRES_PORT", value: "5432" },
+    { name: "POSTGRES_DB", value: "mediagent" },
+    { name: "POSTGRES_USER", value: "mediagent" },
+    { name: "POSTGRES_PASSWORD", value: postgresPassword },
+    { name: "GCS_BUCKET_NAME", value: uploadsBucket.name },
+];
+
+// Telegram token is optional — only add if configured
+if (telegramBotToken) {
+    backendEnvs.push({ name: "TELEGRAM_BOT_TOKEN", value: telegramBotToken });
+}
+
 const backendService = new gcp.cloudrunv2.Service(
     "backend-service",
     {
-        name: `mediagent-backend-${stack}`,
+        name: `mediagent-api-${stack}`,
         project,
         location: region,
         ingress: "INGRESS_TRAFFIC_ALL",
@@ -135,114 +137,32 @@ const backendService = new gcp.cloudrunv2.Service(
                 {
                     image: backendImage,
                     ports: [{ containerPort: 8000 }],
-                    envs: [
-                        { name: "GEMINI_API_KEY", value: geminiApiKey },
-                        { name: "POSTGRES_HOST", value: postgresHost },
-                        { name: "POSTGRES_PORT", value: "5432" },
-                        { name: "POSTGRES_DB", value: "mediagent" },
-                        { name: "POSTGRES_USER", value: "mediagent" },
-                        { name: "POSTGRES_PASSWORD", value: postgresPassword },
-                        {
-                            name: "GCS_BUCKET_NAME",
-                            value: uploadsBucket.name,
-                        },
-                        {
-                            name: "TELEGRAM_BOT_TOKEN",
-                            value: telegramBotToken,
-                        },
-                    ],
+                    envs: backendEnvs,
                     resources: {
-                        limits: {
-                            cpu: "1",
-                            memory: "512Mi",
-                        },
+                        limits: { cpu: "1", memory: "1Gi" },
                     },
                 },
             ],
-            scaling: {
-                minInstanceCount: 0,
-                maxInstanceCount: 2,
-            },
+            scaling: { minInstanceCount: 0, maxInstanceCount: 3 },
         },
     },
     { dependsOn: enabledApis },
 );
 
-// Public access for backend
-const backendIamBinding = new gcp.cloudrunv2.ServiceIamBinding(
-    "backend-public-access",
-    {
-        name: backendService.name,
-        project,
-        location: region,
-        role: "roles/run.invoker",
-        members: ["allUsers"],
-    },
-);
-
-const backendUrl = backendService.uri;
+new gcp.cloudrunv2.ServiceIamBinding("backend-public-access", {
+    name: backendService.name,
+    project,
+    location: region,
+    role: "roles/run.invoker",
+    members: ["allUsers"],
+});
 
 // ---------------------------------------------------------------------------
-// 5. Cloud Run service — Frontend (Next.js)
+// Stack Outputs
 // ---------------------------------------------------------------------------
 
-const frontendImage = pulumi.interpolate`${artifactRegistryUrl}/frontend:latest`;
-
-const frontendService = new gcp.cloudrunv2.Service(
-    "frontend-service",
-    {
-        name: `mediagent-frontend-${stack}`,
-        project,
-        location: region,
-        ingress: "INGRESS_TRAFFIC_ALL",
-        template: {
-            containers: [
-                {
-                    image: frontendImage,
-                    ports: [{ containerPort: 3000 }],
-                    envs: [
-                        {
-                            name: "NEXT_PUBLIC_API_URL",
-                            value: backendUrl,
-                        },
-                    ],
-                    resources: {
-                        limits: {
-                            cpu: "1",
-                            memory: "512Mi",
-                        },
-                    },
-                },
-            ],
-            scaling: {
-                minInstanceCount: 0,
-                maxInstanceCount: 2,
-            },
-        },
-    },
-    { dependsOn: enabledApis },
-);
-
-// Public access for frontend
-const frontendIamBinding = new gcp.cloudrunv2.ServiceIamBinding(
-    "frontend-public-access",
-    {
-        name: frontendService.name,
-        project,
-        location: region,
-        role: "roles/run.invoker",
-        members: ["allUsers"],
-    },
-);
-
-const frontendUrl = frontendService.uri;
-
-// ---------------------------------------------------------------------------
-// Stack outputs
-// ---------------------------------------------------------------------------
-
-export const backendServiceUrl = backendUrl;
-export const frontendServiceUrl = frontendUrl;
+export const backendUrl = backendService.uri;
 export const gcsBucketName = uploadsBucket.name;
-export const cloudSqlConnectionString = postgresConnectionString;
+export const postgresConnectionString = pulumi.interpolate`postgresql://mediagent:${postgresPassword}@${postgresHost}:5432/mediagent`;
 export const artifactRegistryRepository = artifactRegistryUrl;
+export const postgresIp = postgresHost;

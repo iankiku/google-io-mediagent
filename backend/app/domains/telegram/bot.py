@@ -1,9 +1,11 @@
 import os
 import logging
+import uuid
 import telebot
 from telebot import types as tg_types
 from app.domains.telegram.services import register_telegram_user, get_user_by_telegram_id
 from app.domains.ingestion.services import ingest_medical_record
+from app.core.storage import upload_file
 from app.domains.orchestration.graph import graph
 
 logger = logging.getLogger("health_assistant.telegram.bot")
@@ -109,19 +111,12 @@ def init_bot_handlers():
             return
             
         try:
-            # Download file from Telegram servers
             file_info = bot.get_file(file_id)
             downloaded_file = bot.download_file(file_info.file_path)
-            
-            # Save file & Ingest
-            upload_dir = "./workspace_uploads"
-            os.makedirs(upload_dir, exist_ok=True)
-            save_path = os.path.join(upload_dir, file_name)
-            
-            with open(save_path, "wb") as f:
-                f.write(downloaded_file)
-                
-            # Run ingestion pipeline
+
+            safe_filename = f"{uuid.uuid4()}{os.path.splitext(file_name)[1]}"
+            save_path = upload_file(downloaded_file, safe_filename, file_mime)
+
             record_id = ingest_medical_record(
                 user_id=str(user["id"]),
                 file_name=file_name,
