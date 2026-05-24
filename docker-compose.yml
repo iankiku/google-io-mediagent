@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/app/core/db_init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -14,7 +14,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       POSTGRES_HOST: db

@@ -10,6 +10,12 @@ from app.domains.orchestration.graph import graph
 
 logger = logging.getLogger("health_assistant.telegram.bot")
 
+MAX_TG_MSG = 4096
+
+def send_long_message(chat_id, text, **kwargs):
+    for i in range(0, len(text), MAX_TG_MSG):
+        bot.send_message(chat_id, text[i:i + MAX_TG_MSG], **kwargs)
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = None
 
@@ -214,7 +220,7 @@ def init_bot_handlers():
                     "user_id": str(user["id"])
                 }
                 result = graph.invoke(state)
-                bot.send_message(call.message.chat.id, result.get("agent_response", "Could not generate explanation."))
+                send_long_message(call.message.chat.id, result.get("agent_response", "Could not generate explanation."))
             except Exception as e:
                 bot.send_message(call.message.chat.id, f"Sorry, I couldn't explain that right now: {e}")
 
@@ -257,8 +263,8 @@ def init_bot_handlers():
             
             result = graph.invoke(initial_state)
             response_text = result.get("agent_response", "Sorry, I encountered an issue retrieving an answer.")
-            
-            bot.reply_to(message, response_text)
+
+            send_long_message(message.chat.id, response_text)
         except Exception as e:
             logger.error(f"Error handling Telegram chat: {str(e)}")
             bot.reply_to(message, "Sorry, I am having trouble connecting to my knowledge base right now.")

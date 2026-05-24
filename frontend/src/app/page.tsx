@@ -46,14 +46,29 @@ export default function Page() {
   }, []);
 
   const handleImportData = useCallback(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".pdf,.png,.jpg,.jpeg,.txt,.csv";
     input.multiple = true;
-    input.onchange = () => {
-      const count = input.files?.length ?? 0;
-      if (count > 0) {
-        alert(`Imported ${count} file${count === 1 ? "" : "s"}. Zoe will process them shortly.`);
+    input.onchange = async () => {
+      const files = input.files;
+      if (!files || files.length === 0) return;
+      for (let i = 0; i < files.length; i++) {
+        const form = new FormData();
+        form.append("user_id", "demo-patient-uuid-001");
+        form.append("file", files[i]);
+        try {
+          const res = await fetch(`${apiBase}/api/ingest/upload`, { method: "POST", body: form });
+          if (res.ok) {
+            const data = await res.json();
+            alert(`✅ ${files[i].name} processed and saved to your health record.`);
+          } else {
+            alert(`❌ Failed to process ${files[i].name}`);
+          }
+        } catch {
+          alert(`❌ Could not connect to Zoie backend for ${files[i].name}`);
+        }
       }
     };
     input.click();
