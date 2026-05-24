@@ -516,6 +516,13 @@ def results_to_context(results: list[SourceResult]) -> str:
 
 
 def summarize(query: str, routing: RoutingDecision, results: list[SourceResult], settings: Settings):
+    """
+    Legacy raw `client.models.generate_content` synthesis path.
+
+    Preserved because the standalone CLI (`python medical_rag.py`) and any
+    third-party callers might still hit this entrypoint. The default
+    `run_pipeline` below now routes through the Managed Agents API instead.
+    """
     client = get_client(settings)
     tools = []
     if settings.enable_google_search_grounding:
@@ -537,20 +544,91 @@ def summarize(query: str, routing: RoutingDecision, results: list[SourceResult],
     )
 
 
+def _summarize_via_managed_agent(
+    query: str,
+    routing: RoutingDecision,
+    results: list[SourceResult],
+    settings: Settings,
+) -> tuple[str, list[str]]:
+    """
+    Final synthesis through the Gemini Managed Agents API.
+
+    Imports the shared helper lazily so the standalone CLI (which still has
+    its own `.venv` independent of the backend package) can keep working
+    without forcing the full backend dependency tree at import time.
+    """
+    # The research agent has its own .venv and may not always have the FastAPI
+    # backend importable. We try the Managed Agent path first; if anything
+    # blocks the import (standalone CLI use), we fall back to the raw call.
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+
+        backend_root = _Path(__file__).resolve().parents[4]
+        if str(backend_root) not in _sys.path:
+            _sys.path.insert(0, str(backend_root))
+        from app.domains.agents.managed_agents import synthesize_via_managed_agent
+    except Exception as exc:  # pragma: no cover - standalone CLI fallback
+        legacy = summarize(query, routing, results, settings)
+        text = getattr(legacy, "text", None) or str(legacy)
+        return text, [
+            f"[ResearchAgent] Managed Agent helper unavailable ({exc}); "
+            "fell back to raw client.models.generate_content call.",
+        ]
+
+    prompt = (
+        f"User query: {query}\n\n"
+        f"Routing decision:\n{routing.context_text()}\n\n"
+        f"Retrieved evidence:\n{results_to_context(results)}\n\n"
+        "Now synthesize the best answer from the routed evidence."
+    )
+
+    tools = ["google_search", "url_context"] if settings.enable_google_search_grounding else None
+
+    result = synthesize_via_managed_agent(
+        input_text=prompt,
+        system_instruction=SUMMARIZER_SYSTEM_PROMPT,
+        persona_key="research",
+        tools=tools,
+        log_prefix="[ResearchAgent]",
+    )
+    return result.output_text, result.logs
+
+
 def run_pipeline(query: str, env_file: str | Path | None = None) -> PipelineResult:
     settings = load_settings(env_file)
     routing = route_query(query, settings)
     results = run_selected_retrievers(routing, settings)
-    response = summarize(query, routing, results, settings)
-    text = getattr(response, "text", None) or str(response)
+    text, _logs = _summarize_via_managed_agent(query, routing, results, settings)
     return PipelineResult(
         query=query,
         routing_decision=routing,
         source_results=results,
         final_answer=text,
         model_name=settings.gemini_model,
-        raw_response=response,
+        raw_response=None,
     )
+
+
+def run_pipeline_full(query: str, env_file: str | Path | None = None) -> tuple[PipelineResult, list[str]]:
+    """
+    Same as `run_pipeline` but also returns the trace logs from the Managed
+    Agent invocation so the orchestrator / UI can show which Managed Agent
+    handled the synthesis and why.
+    """
+    settings = load_settings(env_file)
+    routing = route_query(query, settings)
+    results = run_selected_retrievers(routing, settings)
+    text, logs = _summarize_via_managed_agent(query, routing, results, settings)
+    pipeline_result = PipelineResult(
+        query=query,
+        routing_decision=routing,
+        source_results=results,
+        final_answer=text,
+        model_name=settings.gemini_model,
+        raw_response=None,
+    )
+    return pipeline_result, logs
 
 
 def format_result(result: PipelineResult) -> str:

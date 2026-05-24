@@ -6,6 +6,7 @@ from app.domains.ingestion.router import router as ingestion_router
 from app.domains.telegram.router import router as telegram_router, start_bot_polling
 from app.domains.interpreter.router import router as interpreter_router
 from app.domains.checkins.router import router as checkins_router, read_router, debug_router
+from app.domains.vapi.router import router as vapi_router
 from app.core.db import initialize_database
 
 app = FastAPI(
@@ -32,6 +33,7 @@ app.include_router(interpreter_router)
 app.include_router(checkins_router)
 app.include_router(read_router)
 app.include_router(debug_router)
+app.include_router(vapi_router)
 
 @app.on_event("startup")
 def on_startup():

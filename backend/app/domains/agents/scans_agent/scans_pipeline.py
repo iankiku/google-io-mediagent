@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 DEFAULT_ENV_FILE = Path(__file__).with_name(".env")
 _BACKEND_ROOT = Path(__file__).resolve().parents[4]
 
-DEFAULT_SCANS_MODEL = "gemini-3.5-flash"
+# When the model name is left at the default sentinel below, the Scans agent
+# routes its final synthesis through the Managed Agents API (Antigravity /
+# Gemini 3.5 Flash) instead of a raw `client.models.generate_content` call.
+DEFAULT_SCANS_MODEL = "managed:antigravity"
 SCANS_SYSTEM_INSTRUCTION = """
 You are a MedGemma-style medical imaging explanation agent.
 
@@ -66,7 +69,7 @@ def run_pipeline(
         SCAN_RECORD_FILTER,
         SimpleRecordRagResult,
         retrieve_patient_record_contexts,
-        synthesize_from_patient_records,
+        synthesize_from_patient_records_via_managed_agent,
     )
 
     resolved_limit = limit if limit is not None else int(os.getenv("SCANS_TOP_K", "5"))
@@ -76,6 +79,8 @@ def run_pipeline(
         f"[ScansAgent] Text-only scoped retrieval for user_id={user_id}",
         f"[ScansAgent] filter={SCAN_RECORD_FILTER.name} limit={resolved_limit} model={resolved_model}",
         "[ScansAgent] No raw image bytes are loaded in v1; this searches extracted scan summaries only.",
+        "[ScansAgent] Final synthesis routes through the Managed Agents API "
+        "(Antigravity / Gemini 3.5 Flash) with the Scans persona mounted at .agents/AGENTS.md.",
     ]
 
     contexts = retrieve_patient_record_contexts(
@@ -86,12 +91,14 @@ def run_pipeline(
     )
     logs.append(f"[ScansAgent] Retrieved {len(contexts)} scan-like contexts.")
 
-    answer = synthesize_from_patient_records(
+    answer, synthesis_logs = synthesize_from_patient_records_via_managed_agent(
         query=cleaned_query,
         contexts=contexts,
-        model_name=resolved_model,
         system_instruction=SCANS_SYSTEM_INSTRUCTION,
+        persona_key="scans",
+        log_prefix="[ScansAgent]",
     )
+    logs.extend(synthesis_logs)
 
     return SimpleRecordRagResult(
         query=cleaned_query,

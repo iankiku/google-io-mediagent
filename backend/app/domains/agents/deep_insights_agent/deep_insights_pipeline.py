@@ -193,58 +193,63 @@ def synthesize_grounded_answer(
     custom_agents_md: str | None = None,
     custom_skills: list[dict] | None = None,
 ) -> tuple[str, list[str]]:
-    client, _, _, _ = _import_backend_modules()
-    logs: list[str] = []
+    """
+    Final synthesis step for Deep Insights. Always routes through the Gemini
+    Managed Agents API (`client.interactions.create`) via the shared helper in
+    `app.domains.agents.managed_agents` so this agent behaves identically to
+    the other three (reports, scans, research) in terms of Managed Agent
+    transport and AGENTS.md mounting.
+    """
+    _ensure_backend_on_path()
+    from app.domains.agents.managed_agents import (
+        synthesize_via_managed_agent,
+        PERSONAS,
+    )
 
-    api_tools = [{"type": tool_name} for tool_name in (tools or [])]
-    environment_config: Any = "remote"
+    # Mount the Deep Insights persona by default, but let callers override it
+    # via `custom_agents_md` (the chat router uses this for inline persona
+    # overlays from /api/chat).
+    extra_sources: list[dict] = []
+    persona_key: str | None = "deep_insights"
 
-    if custom_agents_md or custom_skills:
-        sources = []
-        if custom_agents_md:
-            sources.append(
+    if custom_agents_md:
+        persona_key = None
+        extra_sources.append(
+            {
+                "type": "inline",
+                "target": ".agents/AGENTS.md",
+                "content": custom_agents_md,
+            }
+        )
+    else:
+        # When using the default persona, still allow merging the canonical
+        # invariant into the system instruction so the persona file and the
+        # request-level instruction reinforce each other.
+        if PERSONAS.get("deep_insights"):
+            pass
+
+    for skill in custom_skills or []:
+        skill_name = skill.get("name")
+        skill_content = skill.get("content")
+        if skill_name and skill_content:
+            extra_sources.append(
                 {
                     "type": "inline",
-                    "target": ".agents/AGENTS.md",
-                    "content": custom_agents_md,
+                    "target": f".agents/skills/{skill_name}/SKILL.md",
+                    "content": skill_content,
                 }
             )
-            logs.append(
-                f"[DeepInsights] Overlaying custom inline AGENTS.md "
-                f"(length: {len(custom_agents_md)} chars)"
-            )
-        for skill in custom_skills or []:
-            skill_name = skill.get("name")
-            skill_content = skill.get("content")
-            if skill_name and skill_content:
-                sources.append(
-                    {
-                        "type": "inline",
-                        "target": f".agents/skills/{skill_name}/SKILL.md",
-                        "content": skill_content,
-                    }
-                )
-                logs.append(
-                    f"[DeepInsights] Overlaying custom inline skill '{skill_name}' "
-                    f"(length: {len(skill_content)} chars)"
-                )
-        environment_config = {"type": "remote", "sources": sources}
 
-    logs.append(f"[DeepInsights] Invoking Managed Agent '{managed_agent_id}'...")
-
-    try:
-        interaction = client.interactions.create(
-            agent=managed_agent_id,
-            input=query,
-            system_instruction=system_instruction,
-            tools=api_tools,
-            environment=environment_config,
-        )
-        logs.append("[DeepInsights] Interaction succeeded.")
-        return interaction.output_text, logs
-    except Exception as exc:
-        logs.append(f"[DeepInsights] Interaction failed: {exc}")
-        return f"Error executing managed agent interaction: {exc}", logs
+    result = synthesize_via_managed_agent(
+        input_text=query,
+        system_instruction=system_instruction,
+        persona_key=persona_key,
+        extra_sources=extra_sources or None,
+        tools=tools,
+        managed_agent_id=managed_agent_id,
+        log_prefix="[DeepInsights]",
+    )
+    return result.output_text, result.logs
 
 
 def run_retrieval(

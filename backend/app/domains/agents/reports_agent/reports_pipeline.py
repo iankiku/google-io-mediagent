@@ -9,7 +9,11 @@ from dotenv import load_dotenv
 DEFAULT_ENV_FILE = Path(__file__).with_name(".env")
 _BACKEND_ROOT = Path(__file__).resolve().parents[4]
 
-DEFAULT_REPORTS_MODEL = "gemini-3.5-flash"
+# Backwards-compat: callers can still pass a raw `model_name` override. When
+# the model name is left at the default sentinel below, the Reports agent
+# routes its final synthesis through the Managed Agents API (Antigravity /
+# Gemini 3.5 Flash) instead of a raw `client.models.generate_content` call.
+DEFAULT_REPORTS_MODEL = "managed:antigravity"
 REPORTS_SYSTEM_INSTRUCTION = """
 You are a medical reports explanation agent.
 
@@ -66,7 +70,7 @@ def run_pipeline(
         REPORT_RECORD_FILTER,
         SimpleRecordRagResult,
         retrieve_patient_record_contexts,
-        synthesize_from_patient_records,
+        synthesize_from_patient_records_via_managed_agent,
     )
 
     resolved_limit = limit if limit is not None else int(os.getenv("REPORTS_TOP_K", "5"))
@@ -76,6 +80,8 @@ def run_pipeline(
         f"[ReportsAgent] One-shot scoped retrieval for user_id={user_id}",
         f"[ReportsAgent] filter={REPORT_RECORD_FILTER.name} limit={resolved_limit} model={resolved_model}",
         "[ReportsAgent] Patient records only; general medical KB is intentionally not queried in v1.",
+        "[ReportsAgent] Final synthesis routes through the Managed Agents API "
+        "(Antigravity / Gemini 3.5 Flash) with the Reports persona mounted at .agents/AGENTS.md.",
     ]
 
     contexts = retrieve_patient_record_contexts(
@@ -86,12 +92,14 @@ def run_pipeline(
     )
     logs.append(f"[ReportsAgent] Retrieved {len(contexts)} report-like contexts.")
 
-    answer = synthesize_from_patient_records(
+    answer, synthesis_logs = synthesize_from_patient_records_via_managed_agent(
         query=cleaned_query,
         contexts=contexts,
-        model_name=resolved_model,
         system_instruction=REPORTS_SYSTEM_INSTRUCTION,
+        persona_key="reports",
+        log_prefix="[ReportsAgent]",
     )
+    logs.extend(synthesis_logs)
 
     return SimpleRecordRagResult(
         query=cleaned_query,

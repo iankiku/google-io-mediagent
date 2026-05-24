@@ -185,15 +185,13 @@ def build_context_block(contexts: Sequence[PatientRecordContext]) -> str:
     )
 
 
-def synthesize_from_patient_records(
+def _build_patient_record_prompt(
     *,
     query: str,
     contexts: Sequence[PatientRecordContext],
-    model_name: str,
-    system_instruction: str,
 ) -> str:
     context_block = build_context_block(contexts)
-    prompt = f"""
+    return f"""
 Patient question:
 {query}
 
@@ -204,6 +202,24 @@ Answer the question using only the retrieved patient records above. Cite patient
 claims with [doc:<record_id>]. If there are no matching records, say that this agent did
 not find relevant records in its scoped data and suggest which document type to upload.
 """.strip()
+
+
+def synthesize_from_patient_records(
+    *,
+    query: str,
+    contexts: Sequence[PatientRecordContext],
+    model_name: str,
+    system_instruction: str,
+) -> str:
+    """
+    Legacy raw `client.models.generate_content` synthesis path.
+
+    Kept for backwards compatibility with any callers that still pass an
+    explicit `model_name` like "gemini-3.5-flash" or "gemini-2.5-flash" and
+    want a direct (non-Managed-Agent) call. New code should call
+    `synthesize_from_patient_records_via_managed_agent` instead.
+    """
+    prompt = _build_patient_record_prompt(query=query, contexts=contexts)
 
     from google.genai import types
 
@@ -218,6 +234,35 @@ not find relevant records in its scoped data and suggest which document type to 
         ),
     )
     return getattr(response, "text", None) or str(response)
+
+
+def synthesize_from_patient_records_via_managed_agent(
+    *,
+    query: str,
+    contexts: Sequence[PatientRecordContext],
+    system_instruction: str,
+    persona_key: str,
+    log_prefix: str = "[PatientRecordRAG]",
+    tools: list[str] | None = None,
+) -> tuple[str, list[str]]:
+    """
+    Final synthesis through the Gemini Managed Agents API.
+
+    Used by both `reports_agent` and `scans_agent` so they share a single
+    transport (Antigravity managed agent) and mount their own AGENTS.md
+    persona file via `environment.sources`.
+    """
+    from app.domains.agents.managed_agents import synthesize_via_managed_agent
+
+    prompt = _build_patient_record_prompt(query=query, contexts=contexts)
+    result = synthesize_via_managed_agent(
+        input_text=prompt,
+        system_instruction=system_instruction,
+        persona_key=persona_key,
+        tools=tools,
+        log_prefix=log_prefix,
+    )
+    return result.output_text, result.logs
 
 
 def format_simple_record_rag_result(result: SimpleRecordRagResult) -> str:
