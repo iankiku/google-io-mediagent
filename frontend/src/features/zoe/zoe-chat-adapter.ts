@@ -63,6 +63,14 @@ export function createZoeChatAdapter(
         return;
       }
 
+      // Visit / live-interpreter messages are tagged with [PATIENT]/[DOCTOR].
+      // The interpreter pipeline already appends the cleaned translation as
+      // its own assistant message — we must NOT call the chat agent here.
+      if (/^\[(PATIENT|DOCTOR)\]\s/.test(prompt)) {
+        yield { content: [{ type: "text", text: "" }] };
+        return;
+      }
+
       try {
         const res = await fetch(`${API_BASE}/api/chat`, {
           method: "POST",

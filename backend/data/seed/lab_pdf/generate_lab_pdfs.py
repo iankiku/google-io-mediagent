@@ -259,6 +259,115 @@ def main():
         signer="Ramirez, David MD · Hematopathologist, Sutter Oncology",
     )
 
+    # ============================================================
+    # Zhang Wei — Cardiac workup (3 PDFs across his timeline)
+    # ============================================================
+    zhang = {
+        "name": "Zhang, Wei",
+        "dob": "1961-07-22",
+        "mrn": "Z-003-ZHW",
+        "sex": "Male",
+        "ordering_md": "Patel, Aris MD (Cardiology)",
+        "collected": "2026-03-02 22:14",
+    }
+    sf_general = {
+        "name": "SF General Hospital — Core Lab",
+        "address": "1001 Potrero Ave · San Francisco, CA 94110 · CLIA 05D0644455",
+    }
+
+    # ER cardiac biomarkers (Mar 02 2026)
+    build_pdf(
+        "zhang_bnp_troponin_2026-03-02.pdf",
+        patient=zhang, clinic=sf_general,
+        accession="CARD-26030200218",
+        report_date="2026-03-02",
+        panels=[
+            ("Cardiac Biomarkers", [
+                ("Troponin I (hs)",        "12",   "ng/L",   "< 14",        ""),
+                ("NT-proBNP",              "412",  "pg/mL",  "< 125 (<75y)", "H"),
+                ("CK-MB",                  "3.8",  "ng/mL",  "0.0 - 6.3",   ""),
+                ("D-Dimer",                "240",  "ng/mL",  "< 500",       ""),
+            ]),
+            ("Basic Metabolic Panel", [
+                ("Glucose",                "104",  "mg/dL",  "70 - 99",     "H"),
+                ("BUN",                    "18",   "mg/dL",  "7 - 20",      ""),
+                ("Creatinine",             "1.10", "mg/dL",  "0.74 - 1.35", ""),
+                ("Sodium",                 "138",  "mmol/L", "136 - 145",   ""),
+                ("Potassium",              "4.0",  "mmol/L", "3.5 - 5.1",   ""),
+                ("Magnesium",              "1.9",  "mg/dL",  "1.7 - 2.3",   ""),
+                ("TSH",                    "1.8",  "uIU/mL", "0.40 - 4.50", ""),
+            ]),
+        ],
+        signer="Okonkwo, Adaeze MD · Emergency Lab Director",
+    )
+
+    # Lipid panel from Dec '25 baseline workup (the one that started statin)
+    zhang_dec = dict(zhang, collected="2025-12-08 07:55", ordering_md="Nguyen, Mai MD (Primary Care)")
+    chinatown_pc = {
+        "name": "Chinatown Family Health — Lab Services",
+        "address": "1490 Mason St · San Francisco, CA 94133 · CLIA 05D2099310",
+    }
+    build_pdf(
+        "zhang_lipid_2025-12-08.pdf",
+        patient=zhang_dec, clinic=chinatown_pc,
+        accession="LP-25120800089",
+        report_date="2025-12-08",
+        panels=[
+            ("Lipid Panel", [
+                ("Total Cholesterol",       "246",  "mg/dL", "< 200",       "H"),
+                ("HDL Cholesterol",         "36",   "mg/dL", "> 40 (male)", "L"),
+                ("LDL Cholesterol (calc.)", "178",  "mg/dL", "< 100",       "H"),
+                ("Triglycerides",           "192",  "mg/dL", "< 150",       "H"),
+                ("Non-HDL Cholesterol",     "210",  "mg/dL", "< 130",       "H"),
+                ("Cholesterol/HDL Ratio",   "6.8",  "",      "< 5.0",       "H"),
+            ]),
+        ],
+        signer="Lee, Jonathan MD · Pathologist, Chinatown Family Health Lab",
+    )
+
+    # Pre-anticoagulation baseline labs (May 18 2026 — before starting apixaban)
+    zhang_may = dict(zhang, collected="2026-05-18 08:40", ordering_md="Patel, Aris MD (Cardiology)")
+    build_pdf(
+        "zhang_anticoag_baseline_2026-05-18.pdf",
+        patient=zhang_may, clinic=sf_general,
+        accession="COAG-26051800341",
+        report_date="2026-05-18",
+        panels=[
+            ("Coagulation & Renal Panel — Pre-anticoagulation", [
+                ("PT",                     "12.6", "sec",    "11.0 - 13.5", ""),
+                ("INR",                    "1.05", "",       "0.9 - 1.1",   ""),
+                ("aPTT",                   "31",   "sec",    "25 - 35",     ""),
+                ("Hemoglobin",             "13.8", "g/dL",   "13.5 - 17.5", ""),
+                ("Platelets",              "212",  "10^3/uL","150 - 400",   ""),
+                ("Creatinine",             "1.08", "mg/dL",  "0.74 - 1.35", ""),
+                ("eGFR",                   "78",   "mL/min", "> 60",        ""),
+                ("ALT",                    "28",   "U/L",    "7 - 56",      ""),
+                ("AST",                    "24",   "U/L",    "10 - 35",     ""),
+            ]),
+        ],
+        signer="Okonkwo, Adaeze MD · Emergency Lab Director",
+    )
+
+    # ============================================================
+    # Ravi Kumar — HbA1c trend (added for the diabetes arc)
+    # ============================================================
+    ravi_a1c = dict(ravi, collected="2026-05-15 08:10", ordering_md="Patel, Anjali MD (Endocrinology)")
+    build_pdf(
+        "ravi_hba1c_2026-05-15.pdf",
+        patient=ravi_a1c, clinic=bayview,
+        accession="HBA-26051500412",
+        report_date="2026-05-15",
+        panels=[
+            ("Diabetes Monitoring", [
+                ("HbA1c",                  "7.2",  "%",      "< 5.7 (normal)\n5.7 - 6.4 (pre-DM)\n>= 6.5 (DM)", "H"),
+                ("Estimated Avg Glucose",  "160",  "mg/dL",  "< 117",       "H"),
+                ("Glucose (fasting)",      "132",  "mg/dL",  "70 - 99",     "H"),
+                ("Microalbumin (urine)",   "22",   "mg/g",   "< 30",        ""),
+            ]),
+        ],
+        signer="Jenkins, Sarah MD · Pathologist, Bayview Lab",
+    )
+
     print("Generated:")
     for p in sorted(OUT_DIR.glob("*.pdf")):
         print(f"  {p.name}  ({p.stat().st_size // 1024} KB)")

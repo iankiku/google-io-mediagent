@@ -222,14 +222,21 @@ function DetailBody({
           <LegacyLabTable rows={entry.labResults} />
         )}
 
-        {/* Scans (always shown when present — visual artifacts live outside the section list) */}
-        {entry.scans && entry.scans.length > 0 && (
+        {/* Scans — only show real, clinically meaningful imagery. Hide PDFs
+            (no rendered preview, just a placeholder) and generic rx_* stock
+            photos that don't carry diagnostic information. */}
+        {(() => {
+          const visibleScans = (entry.scans ?? []).filter(
+            (s) => s.src && !s.name.toLowerCase().startsWith("rx_"),
+          );
+          if (visibleScans.length === 0) return null;
+          return (
           <section>
             <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground mb-2">
               Scans &amp; Images
             </p>
             <div className="grid grid-cols-2 gap-3">
-              {entry.scans.map((scan) => (
+              {visibleScans.map((scan) => (
                 <button
                   key={scan.name}
                   type="button"
@@ -263,7 +270,8 @@ function DetailBody({
               ))}
             </div>
           </section>
-        )}
+          );
+        })()}
 
         {/* Legacy AI Takeaway: only when no structured sections (sections carry their own asks). */}
         {!hasStructured && entry.aiTakeaway && (

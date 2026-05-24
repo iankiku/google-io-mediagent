@@ -22,11 +22,7 @@ import {
 import { Orb } from "./Orb";
 import { ZoeAssistantProvider } from "./ZoeAssistantProvider";
 import { ZoeLogo } from "./ZoeLogo";
-import {
-  useInterpreterOrb,
-  type InterpreterRole,
-  type OrbMode,
-} from "./useInterpreterOrb";
+import { useInterpreterOrb, type OrbMode } from "./useInterpreterOrb";
 import { cn } from "@/lib/utils";
 import type { SettingsState } from "./types";
 
@@ -70,7 +66,6 @@ function TalkScene({
   const {
     recording,
     processing,
-    currentRole,
     turnCount,
     error,
     onOrbTap,
@@ -102,7 +97,6 @@ function TalkScene({
           mode={mode}
           recording={recording}
           processing={processing}
-          currentRole={currentRole}
           onOrbTap={onOrbTap}
         />
         {error && (
@@ -206,13 +200,11 @@ function TalkHero({
   mode,
   recording,
   processing,
-  currentRole,
   onOrbTap,
 }: {
   mode: OrbMode;
   recording: boolean;
   processing: boolean;
-  currentRole: InterpreterRole;
   onOrbTap: () => void;
 }) {
   const status = recording
@@ -230,33 +222,12 @@ function TalkHero({
 
   return (
     <div className="shrink-0 flex flex-col items-center pt-8 pb-6 px-6">
-      {mode === "visit" && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground">
-            Next turn
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-              currentRole === "patient"
-                ? "bg-sky-100 text-sky-700"
-                : "bg-emerald-100 text-emerald-700",
-            )}
-          >
-            {currentRole}
-          </span>
-        </div>
-      )}
       <button
         type="button"
         onClick={onOrbTap}
         disabled={processing}
         aria-label={recording ? "Stop and send" : "Tap to speak"}
-        className={cn(
-          "outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-full transition-transform active:scale-95 disabled:opacity-70",
-          mode === "visit" &&
-            "ring-2 ring-offset-4 ring-sky-300/60 ring-offset-background",
-        )}
+        className="outline-none focus-visible:ring-2 focus-visible:ring-foreground/15 rounded-full transition-transform active:scale-95 disabled:opacity-70"
       >
         <Orb size={168} listening={recording || processing} />
       </button>
@@ -336,6 +307,16 @@ function SuggestionPill() {
 
 function TranscriptItem() {
   const role = useAuiState((s) => s.message.role);
+  const text = useAuiState((s) =>
+    s.message.content
+      .filter((p) => p.type === "text")
+      .map((p) => (p as { type: "text"; text: string }).text)
+      .join(""),
+  );
+
+  // Hide empty assistant messages (e.g. the no-op response when the chat
+  // adapter is bypassed in visit / live-interpreter mode).
+  if (role === "assistant" && !text.trim()) return null;
 
   if (role === "user") {
     return (
